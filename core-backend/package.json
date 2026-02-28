@@ -1,0 +1,36 @@
+{
+  "name": "core-backend",
+  "version": "1.0.0",
+  "main": "src/server.js",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18 <21"
+  },
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "start:prod": "cross-env NODE_ENV=production node src/server.js",
+    "migrate": "node run-migrations.js"
+  },
+  "devDependencies": {
+    "nodemon": "3.1.11"
+  },
+  "dependencies": {
+    "bcrypt": "6.0.0",
+    "cors": "2.8.6",
+    "dotenv": "17.3.1",
+    "express": "4.19.2",
+    "express-rate-limit": "8.2.1",
+    "helmet": "8.1.0",
+    "ioredis": "5.9.3",
+    "jsonwebtoken": "9.0.3",
+    "morgan": "1.10.1",
+    "pg": "8.18.0",
+    "pg-hstore": "2.3.4",
+    "puppeteer": "24.37.5",
+    "rate-limit-redis": "4.3.1",
+    "sequelize": "6.37.7",
+    "uuid": "9.0.1",
+    "cross-env": "7.0.3"
+  }
+}
