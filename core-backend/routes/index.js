@@ -45,10 +45,13 @@ const tenantStack = [
 
 router.get("/health", (_req, res) => {
   res.json({
-    success:   true,
-    service:   "SAMA-SUITE Backend",
-    status:    "running",
-    timestamp: new Date().toISOString(),
+    success:       true,
+    service:       "SAMA-SUITE Backend",
+    status:        "running",
+    environment:   process.env.NODE_ENV   || "not set",
+    database:      process.env.DB_NAME    || "NOT CONFIGURED",
+    jwtConfigured: !!process.env.JWT_SECRET,
+    timestamp:     new Date().toISOString(),
   });
 });
 
