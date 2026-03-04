@@ -2,11 +2,13 @@ import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 
+import { LoginComponent } from './auth/login/login.component';
 import { TeacherAttendanceComponent } from './features/attendance/teacher-attendance/teacher-attendance.component';
 import { ParentAttendanceComponent } from './features/attendance/parent-attendance/parent-attendance.component';
 import { PrincipalDashboardComponent } from './features/attendance/principal-dashboard/principal-dashboard.component';
 
 const routes: Routes = [
+  { path: 'login', component: LoginComponent },
   {
     path: 'attendance/teacher',
     component: TeacherAttendanceComponent,
@@ -22,8 +24,8 @@ const routes: Routes = [
     component: PrincipalDashboardComponent,
     canActivate: [authGuard],
   },
-  { path: '', redirectTo: 'attendance/teacher', pathMatch: 'full' },
-  { path: '**', redirectTo: 'attendance/teacher' }
+  { path: '', redirectTo: 'login', pathMatch: 'full' },
+  { path: '**', redirectTo: 'login' },
 ];
 
 @NgModule({

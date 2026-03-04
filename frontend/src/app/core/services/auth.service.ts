@@ -2,11 +2,14 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
+
+  private readonly apiUrl = environment.apiUrl;
 
   /** Access token stored in memory only */
   private accessToken: string | null = null;
@@ -26,7 +29,7 @@ export class AuthService {
     password: string;
   }): Observable<string> {
     return this.http.post<{ token: string }>(
-      '/auth/login',
+      `${this.apiUrl}/auth/login`,
       payload,
       { withCredentials: true }
     ).pipe(
@@ -43,7 +46,7 @@ export class AuthService {
 
   refreshToken(): Observable<string> {
     return this.http.post<{ token: string }>(
-      '/auth/refresh',
+      `${this.apiUrl}/auth/refresh`,
       {},
       { withCredentials: true }
     ).pipe(

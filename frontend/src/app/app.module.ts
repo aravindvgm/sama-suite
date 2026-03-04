@@ -1,6 +1,6 @@
 import { NgModule, APP_INITIALIZER } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
-import { HttpClientModule } from '@angular/common/http';
+import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';   // ⭐ ADD THIS
 
 import { AppRoutingModule } from './app-routing.module';
@@ -10,6 +10,7 @@ import { OrgSelectorComponent } from './shared/org-selector/org-selector.compone
 import { SidebarComponent } from './shared/sidebar/sidebar.component';
 import { HasRoleDirective } from './core/directives/has-role.directive';
 import { AuthBootstrapService } from './core/services/auth-bootstrap.service';
+import { AuthInterceptor } from './core/interceptors/auth.interceptor';
 
 import { TeacherAttendanceComponent } from './features/attendance/teacher-attendance/teacher-attendance.component';
 import { ParentAttendanceComponent } from './features/attendance/parent-attendance/parent-attendance.component';
@@ -34,11 +35,16 @@ import { PrincipalDashboardComponent } from './features/attendance/principal-das
   ],
   providers: [
     {
+      provide: HTTP_INTERCEPTORS,
+      useClass: AuthInterceptor,
+      multi: true,
+    },
+    {
       provide: APP_INITIALIZER,
       useFactory: (bootstrap: AuthBootstrapService) => () => bootstrap.initialize(),
       deps: [AuthBootstrapService],
-      multi: true
-    }
+      multi: true,
+    },
   ],
   bootstrap: [AppComponent]
 })
