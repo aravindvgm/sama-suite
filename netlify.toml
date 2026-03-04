@@ -1,17 +1,23 @@
-# Netlify build configuration for SAMA-SUITE Angular frontend.
-# Repo root contains both core-backend/ and frontend/ — Netlify only builds frontend/.
+# Netlify build configuration for SAMA-SUITE Angular frontend
 
 [build]
-  base    = "frontend"
+  base = "frontend"
   command = "npm run build"
-  publish = "dist/frontend"
+  publish = "frontend/dist/frontend/browser"
 
 [build.environment]
   NODE_VERSION = "20"
 
-# Angular client-side routing: every request that does not match a static file
-# is served index.html so the Angular router can handle it.
+# Angular SPA routing support
 [[redirects]]
-  from   = "/*"
-  to     = "/index.html"
+  from = "/*"
+  to = "/index.html"
   status = 200
+
+# Security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
