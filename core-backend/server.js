@@ -6,7 +6,7 @@ const app = express();
 
 
 // ======================================================
-// TRUST PROXY (required for Render / reverse proxies)
+// TRUST PROXY
 // ======================================================
 
 app.set("trust proxy", 1);
@@ -20,19 +20,17 @@ app.use(helmet());
 
 
 // ======================================================
-// CORS CONFIGURATION (DEMO SAFE)
+// CORS CONFIGURATION
 // ======================================================
 
 const corsOptions = {
   origin: true,
   credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+  allowedHeaders: ["Content-Type","Authorization"]
 };
 
 app.use(cors(corsOptions));
-
-// handle preflight requests
 app.options("*", cors(corsOptions));
 
 
@@ -45,12 +43,12 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 
 // ======================================================
-// API ROUTES
+// ROUTES
 // ======================================================
 
-const apiRoutes = require("./routes/index");
+const routes = require("./routes/index");
 
-app.use("/api", apiRoutes);
+app.use("/api", routes);
 
 
 // ======================================================
