@@ -1,0 +1,25 @@
+[Unit]
+Description=SAMA-SUITE Demo Watchdog — fires every 30 seconds
+Documentation=https://github.com/SAMA-TECHNOLOGIES/SAMA-SUITE
+Requires=sama-suite-watchdog.service
+
+[Timer]
+# First run 30 seconds after the timer unit starts (includes boot).
+OnBootSec=30
+
+# Subsequent runs: 30 seconds after the previous service run COMPLETED.
+# Using OnUnitActiveSec (not OnCalendar) prevents overlap if a run
+# takes longer than expected — each check starts fresh after the last.
+OnUnitActiveSec=30
+
+# Tighten the accuracy window so the timer fires at the scheduled second,
+# not within systemd's default ±1 minute coalescing window.
+AccuracySec=1
+
+# If a run is missed (e.g. VM was suspended), do not fire missed activations
+# in a burst on resume — skip them and resume the normal 30-second cadence.
+Persistent=false
+
+[Install]
+# Automatically started on boot when this unit is enabled.
+WantedBy=timers.target

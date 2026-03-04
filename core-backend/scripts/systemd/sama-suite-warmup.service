@@ -1,0 +1,59 @@
+[Unit]
+Description=SAMA-SUITE Demo Warmup — warms PostgreSQL buffers and HTTP API layer
+Documentation=https://github.com/SAMA-TECHNOLOGIES/SAMA-SUITE
+
+# Run after basic networking is ready.
+After=network-online.target
+Wants=network-online.target
+
+# If pm2 is managed by systemd (created via `pm2 startup`), also wait for it.
+# The unit name depends on the user pm2 runs as:
+#   root user → pm2-root.service
+#   other user → pm2-<username>.service
+# Uncomment and adjust the line below once you know your pm2 service name:
+# After=network-online.target pm2-root.service
+# Wants=pm2-root.service
+
+[Service]
+Type=oneshot
+
+# The warmup must not outlive a single activation.
+RemainAfterExit=no
+
+# ── 20-second delay ───────────────────────────────────────────────────────────
+# Wait for the backend HTTP server to finish binding and accept connections
+# before the warmup script issues fetch() calls.
+ExecStartPre=/bin/sleep 20
+
+# ── Warmup runner ─────────────────────────────────────────────────────────────
+# runDemoWarmup.sh handles:
+#   - timestamped log header/footer
+#   - real-time tee to warmup.log
+#   - "fatal" keyword detection → exit 1
+#   - non-zero exit propagation from demoWarmup.ts
+# Adjust path if repo is not at /opt/sama-suite.
+ExecStart=/opt/sama-suite/core-backend/scripts/runDemoWarmup.sh
+
+# Run as root so npm/npx global bins are reachable.
+# If node/npx is installed under a different user, change User= accordingly
+# and ensure that user can write to /var/log/sama-suite/.
+User=root
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+# runDemoWarmup.sh writes to warmup.log directly.
+# These directives also capture anything that escapes to stdout/stderr.
+StandardOutput=append:/var/log/sama-suite/warmup.log
+StandardError=append:/var/log/sama-suite/warmup.log
+
+# ── Timeouts ──────────────────────────────────────────────────────────────────
+# 20s sleep + up to 150s for the warmup itself (SQL + 4 HTTP calls × 12s timeout).
+TimeoutStartSec=180
+
+# ── Failure behaviour ─────────────────────────────────────────────────────────
+# Do NOT restart automatically on failure.
+# A failed warmup means the backend or DB has a problem that needs operator
+# attention — blindly retrying would mask the root cause.
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

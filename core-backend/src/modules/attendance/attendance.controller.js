@@ -137,9 +137,118 @@ async function deleteAttendance(req, res) {
   }
 }
 
+// ============================================================
+// GET SECTION ROSTER
+// GET /api/:organizationId/attendance/section/:sectionId?date=YYYY-MM-DD
+// ============================================================
+
+async function getSectionRoster(req, res) {
+  const { organizationId } = req.user;
+  const { sectionId }      = req.params;
+  const date               = req.query.date || new Date().toISOString().split('T')[0];
+
+  try {
+    const data = await attendanceService.getSectionRoster({ organizationId, sectionId, date });
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ success: false, message: err.message });
+    }
+    console.error('getSectionRoster error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
+// ============================================================
+// BULK MARK ATTENDANCE
+// POST /api/:organizationId/attendance/bulk
+// Body: { sectionId, date, records: [{ studentId, enrollmentId, status }] }
+// ============================================================
+
+async function bulkMarkAttendance(req, res) {
+  const { organizationId, userId } = req.user;
+  const { sectionId, date, records } = req.body;
+
+  if (!sectionId || !date || !Array.isArray(records)) {
+    return res.status(422).json({
+      success: false,
+      message: 'sectionId, date, and records[] are required',
+    });
+  }
+
+  try {
+    const result = await attendanceService.bulkUpsertAttendance({
+      organizationId,
+      sectionId,
+      date,
+      records,
+      userId,
+    });
+
+    auditService.log({
+      organizationId,
+      userId,
+      action:     'BULK_MARK',
+      entityType: 'ATTENDANCE',
+      entityId:   sectionId,
+      meta:       { date, count: result.saved },
+      ipAddress:  req.ip,
+    });
+
+    return res.json({ success: true, saved: result.saved });
+  } catch (err) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ success: false, message: err.message });
+    }
+    console.error('bulkMarkAttendance error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
+// ============================================================
+// GET STUDENT ATTENDANCE (parent view)
+// GET /api/:organizationId/attendance/student/:studentId
+// Returns last 7 days including today.
+// ============================================================
+
+async function getStudentAttendance(req, res) {
+  const { organizationId } = req.user;
+  const { studentId }      = req.params;
+
+  try {
+    const rows = await attendanceService.getStudentAttendanceSummary({ organizationId, studentId });
+    return res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error('getStudentAttendance error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
+// ============================================================
+// GET ATTENDANCE DASHBOARD (principal)
+// GET /api/:organizationId/attendance/dashboard?date=YYYY-MM-DD
+// ============================================================
+
+async function getDashboard(req, res) {
+  const { organizationId } = req.user;
+  const date               = req.query.date || new Date().toISOString().split('T')[0];
+
+  try {
+    const data = await attendanceService.getAttendanceDashboard({ organizationId, date });
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error('getDashboard error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
 module.exports = {
   markAttendance,
   getAttendanceByDate,
   updateAttendance,
   deleteAttendance,
+  getSectionRoster,
+  bulkMarkAttendance,
+  getStudentAttendance,
+  getDashboard,
 };

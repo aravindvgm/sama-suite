@@ -7,9 +7,14 @@
  * Safe to run on multiple server instances — only one will execute per job.
  *
  * Schedule:
+ *   02:00        — auditIntegrity.worker
+ *   03:00        — stepUpTokenPrune.worker (Phase-9.B)
  *   07:30        — principalDailyBriefing.worker
  *   08:00        — birthdayReminder.worker
  *   08:30        — notificationDispatcher.worker
+ *   every 5min   — securityObservability.worker
+ *   every 10min  — riskNotification.worker (Phase-9.A)
+ *   every 15min  — behavioralRisk.worker + riskCase.worker
  *   every 30min  — notificationRetry.worker
  *
  * Lock mechanism:
@@ -29,11 +34,16 @@ const pool         = require('../config/db');
 const logger       = require('../utils/logger');
 const auditService = require('../utils/auditService');
 
-const { runBirthdayWorker }         = require('./birthdayReminder.worker');
-const { runNotificationDispatcher } = require('./notificationDispatcher.worker');
-const { runNotificationRetry }      = require('./notificationRetry.worker');
-const { runPrincipalDailyBriefing } = require('./principalDailyBriefing.worker');
-const { runAuditIntegrity }         = require('./auditIntegrity.worker');
+const { runBirthdayWorker }           = require('./birthdayReminder.worker');
+const { runNotificationDispatcher }   = require('./notificationDispatcher.worker');
+const { runNotificationRetry }        = require('./notificationRetry.worker');
+const { runPrincipalDailyBriefing }   = require('./principalDailyBriefing.worker');
+const { runAuditIntegrity }           = require('./auditIntegrity.worker');
+const { runSecurityObservability }    = require('./securityObservability.worker');
+const { runBehavioralRisk }          = require('./behavioralRisk.worker');
+const { runRiskCaseSync }            = require('./riskCase.worker');
+const { runRiskNotification }        = require('./riskNotification.worker');
+const { runStepUpTokenPrune }        = require('./stepUpTokenPrune.worker');
 
 // ============================================================
 // IDENTITY
@@ -227,6 +237,57 @@ cron.schedule('*/30 * * * *', () => {
   );
 }, { timezone: TZ });
 
+// every 5 min — Phase-8 security observability signals
+cron.schedule('*/5 * * * *', () => {
+  runJob('security_observability', runSecurityObservability).catch((err) =>
+    logger.error('Scheduler: unhandled rejection in job', {
+      jobName: 'security_observability',
+      error: err.message,
+    })
+  );
+}, { timezone: TZ });
+
+// every 15 min — Phase-8.5 behavioral risk & data access observability
+cron.schedule('*/15 * * * *', () => {
+  runJob('behavioral_risk', runBehavioralRisk).catch((err) =>
+    logger.error('Scheduler: unhandled rejection in job', {
+      jobName: 'behavioral_risk',
+      error: err.message,
+    })
+  );
+}, { timezone: TZ });
+
+// every 15 min — Phase-8.7 risk-case synchronisation (offset 7 min to avoid
+// simultaneous execution with behavioral_risk on the same scheduler instance)
+cron.schedule('7-59/15 * * * *', () => {
+  runJob('risk_case_sync', runRiskCaseSync).catch((err) =>
+    logger.error('Scheduler: unhandled rejection in job', {
+      jobName: 'risk_case_sync',
+      error: err.message,
+    })
+  );
+}, { timezone: TZ });
+
+// every 10 min — Phase-9.A awareness email notifications for risk cases
+cron.schedule('*/10 * * * *', () => {
+  runJob('risk_notification', runRiskNotification).catch((err) =>
+    logger.error('Scheduler: unhandled rejection in job', {
+      jobName: 'risk_notification',
+      error: err.message,
+    })
+  );
+}, { timezone: TZ });
+
+// 03:00 daily — Phase-9.B step-up token prune (delete expired endpoint_stepup_tokens)
+cron.schedule('0 3 * * *', () => {
+  runJob('stepup_token_prune', runStepUpTokenPrune).catch((err) =>
+    logger.error('Scheduler: unhandled rejection in job', {
+      jobName: 'stepup_token_prune',
+      error: err.message,
+    })
+  );
+}, { timezone: TZ });
+
 // ============================================================
 // STARTUP
 // ============================================================
@@ -240,6 +301,11 @@ logger.info('Scheduler: job scheduler started', {
     'birthday_reminder        — daily 08:00',
     'notification_dispatcher  — daily 08:30',
     'notification_retry       — every 30 minutes',
+    'security_observability   — every 5 minutes',
+    'behavioral_risk          — every 15 minutes',
+    'risk_case_sync           — every 15 minutes (offset :07)',
+    'risk_notification        — every 10 minutes',
+    'stepup_token_prune       — daily 03:00',
   ],
 });
 

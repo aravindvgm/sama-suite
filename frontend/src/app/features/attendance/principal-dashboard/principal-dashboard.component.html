@@ -1,0 +1,246 @@
+<!-- Principal Dashboard — single API call, OnPush, minimal DOM -->
+<div class="pd-page">
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="pd-state">Loading dashboard…</div>
+
+  <!-- Error -->
+  <div *ngIf="error && !loading" class="pd-state pd-error">
+    {{ error }}
+    <button class="pd-retry" (click)="load()">Retry</button>
+  </div>
+
+  <!-- Dashboard -->
+  <ng-container *ngIf="data && !loading">
+
+    <!-- Date header -->
+    <div class="pd-header">
+      Attendance — {{ data.date }}
+    </div>
+
+    <!-- Stat cards
+         Order: % (full-width, dominant) → Absent (high-contrast red) → Enrolled -->
+    <div class="pd-stats">
+
+      <!-- ① Attendance % — full-width, largest font, anchors the scan -->
+      <div class="pd-card pd-card--pct">
+        <div class="pd-card-value">
+          <ng-container *ngIf="data.presentCount === 0 && data.absentCount === 0; else pctValue">
+            <span class="pd-not-marked">Not Yet Marked</span>
+          </ng-container>
+          <ng-template #pctValue>{{ data.attendancePercent }}%</ng-template>
+        </div>
+        <div class="pd-card-label">Overall attendance today</div>
+      </div>
+
+      <!-- ② Absent count — high-contrast red, draws immediate attention -->
+      <div class="pd-card pd-card--absent">
+        <div class="pd-card-value">{{ data.absentCount }}</div>
+        <div class="pd-card-label">Absent today</div>
+      </div>
+
+      <!-- ③ Enrolled — supporting context, lowest visual weight -->
+      <div class="pd-card pd-card--total">
+        <div class="pd-card-value">{{ data.totalStudents }}</div>
+        <div class="pd-card-label">Enrolled</div>
+      </div>
+
+    </div>
+
+    <!-- Repeat absentees — sorted by absent_days DESC (severity first) from API -->
+    <div class="pd-section-header">
+      Absent 3+ days this week
+      <span class="pd-badge">{{ data.repeatAbsentees.length }}</span>
+    </div>
+
+    <div *ngIf="!data.repeatAbsentees.length" class="pd-state pd-none">
+      No repeat absentees this week.
+    </div>
+
+    <!-- Days badge is leftmost — eye reads severity before name -->
+    <ul *ngIf="data.repeatAbsentees.length" class="pd-absentee-list">
+      <li
+        *ngFor="let a of data.repeatAbsentees; trackBy: trackByStudentId"
+        class="pd-absentee-item">
+        <span class="pd-absentee-days">{{ a.absent_days }}d</span>
+        <span class="pd-absentee-name">{{ a.last_name }}, {{ a.first_name }}</span>
+      </li>
+    </ul>
+
+  </ng-container>
+
+</div>
+
+<!-- ── Styles (component-scoped via Angular encapsulation) ─────────────────── -->
+<style>
+  .pd-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    font-family: system-ui, sans-serif;
+    font-size: 16px;
+    background: #f5f5f5;
+  }
+
+  .pd-state {
+    padding: 32px;
+    text-align: center;
+    color: #555;
+  }
+  .pd-error { color: #c62828; }
+  .pd-none  { color: #888; font-size: 15px; }
+  .pd-retry {
+    display: block;
+    margin: 12px auto 0;
+    padding: 10px 24px;
+    background: #c62828;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    cursor: pointer;
+  }
+
+  /* Date header */
+  .pd-header {
+    padding: 16px;
+    background: #1565c0;
+    color: #fff;
+    font-size: 17px;
+    font-weight: 600;
+  }
+
+  /* ── Stat cards ──────────────────────────────────────────────────────────
+     Two-column grid. % card spans both columns (full-width, row 1).
+     Absent + Enrolled share row 2.
+  */
+  .pd-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .pd-card {
+    border-radius: 10px;
+    padding: 20px 12px;
+    text-align: center;
+    background: #fff;
+  }
+  .pd-card-value {
+    font-size: 36px;
+    font-weight: 700;
+    color: #1a1a1a;
+    line-height: 1;
+  }
+  .pd-card-label {
+    font-size: 12px;
+    color: #555;
+    margin-top: 6px;
+    font-weight: 500;
+  }
+
+  /* ① % card — full width, dominant visual anchor */
+  .pd-card--pct {
+    grid-column: 1 / -1;
+    background: #e3f2fd;
+    padding: 28px 16px 22px;
+  }
+  .pd-card--pct .pd-card-value {
+    font-size: 72px;
+    font-weight: 800;
+    color: #0d47a1;
+    letter-spacing: -2px;
+  }
+  .pd-card--pct .pd-card-label {
+    font-size: 13px;
+    color: #1565c0;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+
+  /* "Not Yet Marked" — shown instead of 0% when nothing has been recorded */
+  .pd-not-marked {
+    font-size: 26px;
+    font-weight: 700;
+    color: #999;
+    letter-spacing: 0;
+  }
+
+  /* ② Absent card — high-contrast red to pull immediate attention */
+  .pd-card--absent {
+    background: #b71c1c;
+  }
+  .pd-card--absent .pd-card-value {
+    color: #fff;
+    font-size: 44px;
+    font-weight: 800;
+  }
+  .pd-card--absent .pd-card-label {
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  /* ③ Enrolled — lowest visual weight, supporting context */
+  .pd-card--total {
+    background: #f3e5f5;
+  }
+  .pd-card--total .pd-card-value {
+    color: #4a148c;
+    font-size: 44px;
+  }
+  .pd-card--total .pd-card-label {
+    color: #6a1b9a;
+  }
+
+  /* ── Repeat absentees section ────────────────────────────────────────── */
+  .pd-section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 16px 8px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #333;
+  }
+  .pd-badge {
+    background: #b71c1c;
+    color: #fff;
+    border-radius: 12px;
+    padding: 2px 9px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  /* Severity (days badge) is leftmost — eye reads count before name */
+  .pd-absentee-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .pd-absentee-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: flex-start;
+    padding: 13px 16px;
+    background: #fff;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .pd-absentee-days {
+    flex-shrink: 0;
+    min-width: 38px;
+    text-align: center;
+    padding: 4px 10px;
+    background: #b71c1c;
+    color: #fff;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 800;
+  }
+  .pd-absentee-name {
+    color: #1a1a1a;
+    font-size: 15px;
+  }
+</style>

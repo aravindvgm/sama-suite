@@ -53,9 +53,10 @@ app.use("/api", apiLimiter);
 // Each is required once and reused — not imported per-file.
 // ======================================================
 
-const verifyToken = require("./middleware/auth.middleware");
-const requireTenant = require("./middleware/organization.middleware");
+const verifyToken         = require("./middleware/auth.middleware");
+const requireTenant       = require("./middleware/organization.middleware");
 const requireActiveSubscription = require("./middleware/requireActiveSubscription");
+const rateLimitMiddleware = require("./middleware/rateLimit.middleware");
 
 
 // ======================================================
@@ -67,6 +68,10 @@ const meRoutes = require("./modules/me/me.routes");
 const billingRoutes = require("./modules/billing/billing.routes");
 const analyticsRoutes = require("./modules/billing/analytics.routes");
 const usersRoutes = require("./modules/users/users.routes");
+const securityRoutes = require("./modules/security/security.routes");
+const classesRoutes    = require("./modules/classes/classes.routes");
+const enrollmentsRoutes = require("./modules/enrollments/enrollments.routes");
+const attendanceRoutes = require("./modules/attendance/attendance.routes");
 
 
 // ======================================================
@@ -90,7 +95,9 @@ app.use("/api/users", verifyToken, meRoutes);
 
 // ======================================================
 // TENANT-SCOPED STACK
-// verifyToken → tenantLimiter → requireTenant → requireActiveSubscription
+// verifyToken → tenantLimiter → requireTenant → rateLimitMiddleware → requireActiveSubscription
+// rateLimitMiddleware runs after requireTenant so req.user and
+// req.params.organizationId are both populated for the user-limiter key.
 // Applied once per request. Sub-routers must NOT duplicate these.
 // ======================================================
 
@@ -98,6 +105,7 @@ const tenantStack = [
   verifyToken,
   tenantLimiter,
   requireTenant,
+  rateLimitMiddleware,
   requireActiveSubscription
 ];
 
@@ -122,6 +130,32 @@ app.use("/api/:organizationId/reports", tenantStack, analyticsRoutes);
 
 
 // ======================================================
+// SECURITY OPERATIONS ROUTES — Phase-8.7
+// GET  /api/:organizationId/security/risk-cases
+// GET  /api/:organizationId/security/risk-cases/:caseId
+// POST /api/:organizationId/security/risk-cases/:caseId/acknowledge
+// POST /api/:organizationId/security/risk-cases/:caseId/close
+// POST /api/:organizationId/security/risk-events/:eventId/triage
+// tenantStack runs once — securityRoutes must NOT re-apply verifyToken.
+// ======================================================
+
+app.use("/api/:organizationId/security", tenantStack, securityRoutes);
+
+
+// ======================================================
+// ATTENDANCE VERTICAL ROUTES
+// /api/:organizationId/classes/...
+// /api/:organizationId/enrollments/...
+// /api/:organizationId/attendance/...
+// tenantStack runs once — sub-routers must NOT re-apply verifyToken.
+// ======================================================
+
+app.use("/api/:organizationId/classes",     tenantStack, classesRoutes);
+app.use("/api/:organizationId/enrollments", tenantStack, enrollmentsRoutes);
+app.use("/api/:organizationId/attendance",  tenantStack, attendanceRoutes);
+
+
+// ======================================================
 // ORG USER ROUTES
 // /api/org/:organizationId/users
 // verifyToken runs once here — usersRoutes must NOT re-verify.
@@ -140,6 +174,17 @@ app.get("/", (_req, res) => {
     message: "Sama Technologies Core Backend Running"
   });
 });
+
+
+// ======================================================
+// DEMO HEALTH — localhost only, no JWT required
+// GET  /health/demo               — subsystem status
+// POST /health/demo/reset-cache   — clear Redis attendance keys + cycle idle PG connections
+// Access restricted to 127.0.0.1 / ::1 inside demoHealth.routes.js
+// ======================================================
+
+const demoHealthRoutes = require("./modules/system/demoHealth.routes");
+app.use("/health/demo", demoHealthRoutes);
 
 
 // ======================================================

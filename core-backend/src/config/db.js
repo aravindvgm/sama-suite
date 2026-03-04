@@ -14,7 +14,9 @@ const pool = new Pool({
 
   password: process.env.DB_PASSWORD || 'password',
 
-  max: 40,
+  min: 5,
+
+  max: 20,
 
   idleTimeoutMillis: 30000,
 

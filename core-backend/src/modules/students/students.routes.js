@@ -4,7 +4,7 @@ const express           = require('express');
 const router            = express.Router();
 const asyncHandler      = require('../../utils/asyncHandler');
 const verifyToken       = require('../../middleware/auth.middleware');
-const requirePermission = require('../../middleware/requirePermission');
+const { requirePermission } = require('../../middleware/requirePermission');
 const controller        = require('./students.controller');
 
 router.use(verifyToken);

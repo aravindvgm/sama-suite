@@ -1,0 +1,33 @@
+[Unit]
+Description=SAMA-SUITE Demo Watchdog — single health check run
+Documentation=https://github.com/SAMA-TECHNOLOGIES/SAMA-SUITE
+# Timer drives invocation; this unit does one check per activation.
+# Do NOT set Restart= here — the timer is the retry mechanism.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+
+# Adjust this path to wherever the repo is checked out on the VM.
+ExecStart=/opt/sama-suite/core-backend/scripts/demoWatchdog.sh
+
+# Run as root so pm2 (installed globally) and log directory are accessible.
+# If pm2 is user-scoped, change User= to the pm2 owner and adjust PM2_BIN.
+User=root
+
+# Append to the same log file the script writes to.
+StandardOutput=append:/var/log/sama-suite/watchdog.log
+StandardError=append:/var/log/sama-suite/watchdog.log
+
+# Hard limits: the script must complete in under 25 seconds.
+# (Timer interval is 30s; leaving 5s margin before next run.)
+TimeoutStartSec=25
+
+# Resource guard: watchdog should be negligible.
+MemoryMax=32M
+CPUQuota=10%
+
+[Install]
+# Not directly enabled — activated exclusively through the timer.
+WantedBy=sama-suite-watchdog.timer
