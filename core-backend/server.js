@@ -1,30 +1,15 @@
 // ======================================================
-// CORS CONFIGURATION
+// CORS CONFIGURATION (DEMO SAFE VERSION)
 // ======================================================
 
-const allowedOrigins = [
-  "http://localhost:4200",
-  "https://sama-suite-dev.netlify.app"
-];
+const cors = require("cors");
 
-const corsOptions = {
-  origin: function (origin, callback) {
-
-    // Allow non-browser requests (Postman, curl, internal)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error("CORS not allowed"));
-  },
+app.use(cors({
+  origin: true,              // allow all origins for demo
   credentials: true,
   methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
   allowedHeaders: ["Content-Type","Authorization"]
-};
+}));
 
-app.use(cors(corsOptions));
-
-// VERY IMPORTANT: handle preflight requests
-app.options("*", cors(corsOptions));
+// IMPORTANT: handle preflight requests
+app.options("*", cors());
