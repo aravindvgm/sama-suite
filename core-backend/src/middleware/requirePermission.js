@@ -44,4 +44,8 @@ function requirePermission(permissionKey) {
   };
 }
 
-module.exports = { requirePermission };
+// Support both:
+//   const requirePermission = require('./requirePermission')          (most route files)
+//   const { requirePermission } = require('./requirePermission')      (attendance.routes.js)
+module.exports = requirePermission;
+module.exports.requirePermission = requirePermission;
