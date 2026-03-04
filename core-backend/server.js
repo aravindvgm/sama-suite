@@ -45,6 +45,15 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 
 // ======================================================
+// API ROUTES
+// ======================================================
+
+const apiRoutes = require("./routes/index");
+
+app.use("/api", apiRoutes);
+
+
+// ======================================================
 // HEALTH ROUTES
 // ======================================================
 
@@ -52,14 +61,7 @@ app.get("/", (req, res) => {
   res.json({
     success: true,
     service: "SAMA-SUITE Backend",
-    status: "running"
-  });
-});
-
-app.get("/api", (req, res) => {
-  res.json({
-    success: true,
-    service: "SAMA API",
+    company: "Sama Technologies",
     status: "running"
   });
 });
@@ -78,4 +80,3 @@ app.get("/api/health", (req, res) => {
 // ======================================================
 
 module.exports = app;
-```
