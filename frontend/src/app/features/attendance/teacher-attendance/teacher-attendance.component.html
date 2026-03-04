@@ -1,0 +1,299 @@
+<!-- Teacher Attendance — mobile-first, minimal DOM, no heavy animations -->
+<div class="att-page">
+
+  <!-- ── Picker bar ────────────────────────────────────────────── -->
+  <div class="att-picker">
+
+    <select
+      class="att-select"
+      [value]="selectedClassId"
+      (change)="onClassChange($any($event.target).value)">
+      <option value="">Select class</option>
+      <option *ngFor="let c of classes; trackBy: trackByClassId" [value]="c.id">
+        {{ c.name }}
+      </option>
+    </select>
+
+    <select
+      class="att-select"
+      [value]="selectedSectionId"
+      [disabled]="!sections.length"
+      (change)="onSectionChange($any($event.target).value)">
+      <option value="">Select section</option>
+      <option *ngFor="let s of sections; trackBy: trackBySectionId" [value]="s.id">
+        {{ s.name }}
+      </option>
+    </select>
+
+    <input
+      type="date"
+      class="att-date"
+      [value]="date"
+      (change)="onDateChange($any($event.target).value)" />
+
+  </div>
+
+  <!-- ── Loading ───────────────────────────────────────────────── -->
+  <div *ngIf="loadingRoster" class="att-state">
+    <span class="att-spinner"></span>Loading students…
+  </div>
+
+  <!-- ── Roster load error ─────────────────────────────────────── -->
+  <div *ngIf="rosterError && !loadingRoster" class="att-state att-error">
+    {{ rosterError }}
+    <button class="att-btn-retry" (click)="loadRoster()">Retry</button>
+  </div>
+
+  <!-- ── Summary bar ───────────────────────────────────────────── -->
+  <div *ngIf="students.length" class="att-summary">
+    <span class="att-summary-present">{{ presentCount }} present</span>
+    <span class="att-summary-absent">{{ absentCount }} absent</span>
+    <span class="att-summary-total">of {{ students.length }}</span>
+  </div>
+
+  <!-- ── Student list ──────────────────────────────────────────── -->
+  <!-- trackBy prevents full list re-render on toggle -->
+  <ul *ngIf="students.length" class="att-list">
+    <li
+      *ngFor="let s of students; trackBy: trackByStudentId"
+      class="att-item"
+      [class.att-item--absent]="s.localStatus === 'ABSENT'"
+      (click)="toggle(s)">
+
+      <span class="att-name">{{ s.last_name }}, {{ s.first_name }}</span>
+      <span class="att-badge" [class.att-badge--absent]="s.localStatus === 'ABSENT'">
+        {{ s.localStatus }}
+      </span>
+
+    </li>
+  </ul>
+
+  <!-- ── Save bar (sticky footer) ─────────────────────────────── -->
+  <div *ngIf="students.length" class="att-footer">
+
+    <!-- SAVE_SUCCESS -->
+    <div *ngIf="saveState === SS.SAVE_SUCCESS" class="att-saved">
+      Saved {{ savedCount }} records
+    </div>
+
+    <!-- SAVE_SLOW: request timed out — offer retry, not a hard error -->
+    <div *ngIf="saveState === SS.SAVE_SLOW" class="att-save-slow">
+      Taking longer than expected
+      <button class="att-btn-retry-save" (click)="retry()">Retry</button>
+    </div>
+
+    <!-- SAVE_ERROR: hard failure -->
+    <div *ngIf="saveState === SS.SAVE_ERROR" class="att-save-error">
+      Save failed
+      <button class="att-btn-retry-save" (click)="retry()">Retry</button>
+    </div>
+
+    <!-- Primary button: disabled ONLY during SAVING, never during SAVE_SLOW -->
+    <button
+      class="att-btn-save"
+      [disabled]="saveState === SS.SAVING"
+      (click)="save()">
+      {{ saveState === SS.SAVING ? 'Saving…' : 'Save Attendance' }}
+    </button>
+
+  </div>
+
+</div>
+
+<!-- ── Styles (component-scoped via Angular encapsulation) ─────────────────── -->
+<style>
+  .att-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    font-family: system-ui, sans-serif;
+    font-size: 16px;
+    background: #f5f5f5;
+  }
+
+  /* Picker */
+  .att-picker {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    flex-wrap: wrap;
+  }
+  .att-select, .att-date {
+    flex: 1;
+    min-width: 120px;
+    padding: 10px 8px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 15px;
+    background: #fff;
+  }
+
+  /* State messages */
+  .att-state {
+    padding: 24px;
+    text-align: center;
+    color: #555;
+  }
+  .att-error { color: #c62828; }
+  .att-btn-retry {
+    display: block;
+    margin: 12px auto 0;
+    padding: 10px 24px;
+    background: #c62828;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    cursor: pointer;
+  }
+
+  /* Summary bar */
+  .att-summary {
+    display: flex;
+    gap: 16px;
+    padding: 10px 12px;
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .att-summary-present { color: #2e7d32; }
+  .att-summary-absent  { color: #c62828; }
+  .att-summary-total   { color: #555; margin-left: auto; }
+
+  /* List */
+  .att-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 96px;   /* bottom padding for sticky footer */
+  }
+  .att-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 12px;
+    background: #fff;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    /* Prevent text select on rapid taps */
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Press feedback — fires within the browser paint cycle, before Angular CD */
+  .att-item:active {
+    background: #e8eaf6;
+  }
+  .att-item--absent {
+    background: #fff8f8;
+  }
+  .att-item--absent:active {
+    background: #ffd7d5;
+  }
+  .att-name {
+    font-size: 16px;
+    color: #1a1a1a;
+  }
+
+  /* Status badge */
+  .att-badge {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    background: #e8f5e9;
+    color: #2e7d32;
+    min-width: 72px;
+    text-align: center;
+  }
+  .att-badge--absent {
+    background: #fdecea;
+    color: #c62828;
+  }
+
+  /* Sticky footer */
+  .att-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 12px;
+    background: #fff;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .att-saved {
+    font-size: 14px;
+    color: #2e7d32;
+    font-weight: 600;
+  }
+  .att-save-slow {
+    font-size: 13px;
+    color: #e65100;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .att-save-error {
+    font-size: 13px;
+    color: #c62828;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .att-btn-retry-save {
+    padding: 8px 18px;
+    background: transparent;
+    color: inherit;
+    border: 1.5px solid currentColor;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .att-btn-save {
+    margin-left: auto;
+    padding: 14px 28px;
+    background: #1565c0;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    /* Eliminates 300ms tap delay on Android without requiring viewport meta */
+    touch-action: manipulation;
+  }
+  /* Press feedback — visible in the same paint cycle as the touch event */
+  .att-btn-save:active {
+    background: #0d47a1;
+    opacity: 0.9;
+  }
+  .att-btn-save:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* Loading spinner — pure CSS, no Angular logic */
+  @keyframes att-spin {
+    to { transform: rotate(360deg); }
+  }
+  .att-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #ccc;
+    border-top-color: #555;
+    border-radius: 50%;
+    animation: att-spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+</style>
