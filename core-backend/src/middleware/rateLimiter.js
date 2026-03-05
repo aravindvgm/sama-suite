@@ -4,13 +4,19 @@ const { RedisStore } = require('rate-limit-redis');
 const redis = require('../config/redis');
 
 /**
- * Helper: Create Redis Store with unique prefix
+ * Create Redis Store if Redis is available
  */
-const createRedisStore = (prefix) =>
-  new RedisStore({
+const createRedisStore = (prefix) => {
+  if (!redis) {
+    console.log(`⚠️ Redis disabled → using memory store for ${prefix}`);
+    return undefined;
+  }
+
+  return new RedisStore({
     sendCommand: (...args) => redis.call(...args),
     prefix,
   });
+};
 
 /**
  * Standard 429 response
@@ -21,9 +27,7 @@ const rateLimitResponse = {
 };
 
 /**
- * ===============================
  * LOGIN - IP Layer (20 per 15 mins)
- * ===============================
  */
 const loginIpLimiter = rateLimit({
   store: createRedisStore('login-ip:'),
@@ -36,9 +40,7 @@ const loginIpLimiter = rateLimit({
 });
 
 /**
- * ===============================
- * LOGIN - Email Layer (5 per 15 mins per email)
- * ===============================
+ * LOGIN - Email Layer (100 per 15 mins per email)
  */
 const loginEmailLimiter = rateLimit({
   store: createRedisStore('login-email:'),
@@ -52,9 +54,7 @@ const loginEmailLimiter = rateLimit({
 });
 
 /**
- * ===============================
  * AUTH ROUTES LIMITER (50 per 10 mins per IP)
- * ===============================
  */
 const authLimiter = rateLimit({
   store: createRedisStore('auth:'),
@@ -67,9 +67,7 @@ const authLimiter = rateLimit({
 });
 
 /**
- * ===============================
  * GLOBAL API LIMITER (500 per min per IP)
- * ===============================
  */
 const apiLimiter = rateLimit({
   store: createRedisStore('api-ip:'),
