@@ -134,7 +134,16 @@ async function runMigrations() {
     client.release();
   }
 
-  process.exit(0);
 }
 
-runMigrations();
+// ── Module export (used by index.js for auto-migration on startup) ────────────
+
+module.exports = { runMigrations };
+
+// ── Standalone entry point ────────────────────────────────────────────────────
+
+if (require.main === module) {
+  runMigrations()
+    .then(() => process.exit(0))
+    .catch(() => process.exit(1));
+}

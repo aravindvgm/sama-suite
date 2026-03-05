@@ -19,17 +19,29 @@ if (!process.env.JWT_SECRET) {
   process.exit(1);
 }
 
-// ── App bootstrap ─────────────────────────────────────────────────────────────
+// ── App bootstrap (migrations run first, then HTTP server) ───────────────────
 
-const app = require("./server");
+const { runMigrations } = require("./run-migrations");
 
-const PORT = process.env.PORT || 3000;
+async function start() {
+  console.log("Running database migrations...");
+  await runMigrations();
+  console.log("Migrations complete.");
 
-app.listen(PORT, () => {
-  console.log("=================================");
-  console.log("SAMA-SUITE Backend Started");
-  console.log("Company: Sama Technologies");
-  console.log("Environment:", process.env.NODE_ENV);
-  console.log("Port:", PORT);
-  console.log("=================================");
+  const app  = require("./server");
+  const PORT = process.env.PORT || 3000;
+
+  app.listen(PORT, () => {
+    console.log("=================================");
+    console.log("SAMA-SUITE Backend Started");
+    console.log("Company: Sama Technologies");
+    console.log("Environment:", process.env.NODE_ENV);
+    console.log("Port:", PORT);
+    console.log("=================================");
+  });
+}
+
+start().catch((err) => {
+  console.error("FATAL: startup failed:", err.message);
+  process.exit(1);
 });

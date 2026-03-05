@@ -10,7 +10,8 @@
     "dev": "nodemon index.js",
     "start": "node index.js",
     "start:prod": "cross-env NODE_ENV=production node index.js",
-    "migrate": "node run-migrations.js"
+    "migrate": "node run-migrations.js",
+    "seed": "node src/scripts/seed.js"
   },
   "devDependencies": {
     "nodemon": "3.1.11"
