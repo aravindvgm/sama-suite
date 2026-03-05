@@ -12,9 +12,9 @@ const PORT = process.env.PORT || 3000;
 // ======================================================
 
 app.listen(PORT, () => {
-  console.log("=====================================");
-  console.log("SAMA-SUITE Backend Started");
-  console.log(`Server running on port ${PORT}`);
+  console.log("===================================");
+  console.log("SAMA-SUITE Backend Running");
+  console.log(`Port: ${PORT}`);
   console.log("Company: Sama Technologies");
-  console.log("=====================================");
+  console.log("===================================");
 });

@@ -1,3 +1,4 @@
+-- @no-transaction
 -- ============================================================
 -- MIGRATION 030: Phase-9.B Endpoint Friction Hardening
 -- ============================================================
@@ -163,8 +164,7 @@ COMMIT;
 -- Partial: only live (unexpired) tokens are read by the guard; expired tokens
 -- are inert. Index on unexpired rows keeps lookup cost near-zero.
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_est_org_user_group_live
-  ON endpoint_stepup_tokens (organization_id, user_id, endpoint_group)
-  WHERE expires_at > NOW();
+  ON endpoint_stepup_tokens (organization_id, user_id, endpoint_group, expires_at);
 
 -- Prune index: DELETE WHERE expires_at < NOW() LIMIT N
 -- Without this, the prune job degrades to a sequential scan on large tables.

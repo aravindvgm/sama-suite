@@ -1,3 +1,4 @@
+-- @no-transaction
 /**
  * MIGRATION 020 (rev 2): Audit Log Governance — Multi-actor model + safe ENUM removal
  *

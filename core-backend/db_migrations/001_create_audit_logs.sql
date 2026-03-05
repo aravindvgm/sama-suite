@@ -69,9 +69,9 @@ CREATE INDEX idx_audit_reason
 
 -- Prevent accidental modifications (read-only table)
 -- Note: In production, this could be enforced with database triggers
-GRANT SELECT ON audit_logs TO PUBLIC;
-GRANT INSERT ON audit_logs TO authenticated_role;
-REVOKE DELETE, UPDATE ON audit_logs FROM PUBLIC;
+-- GRANT SELECT ON audit_logs TO PUBLIC;
+-- GRANT INSERT ON audit_logs TO authenticated_role;  -- role does not exist in dev
+-- REVOKE DELETE, UPDATE ON audit_logs FROM PUBLIC;
 
 -- Add comment for documentation
 COMMENT ON TABLE audit_logs IS 'Complete financial audit trail. All invoice, payment, and adjustment transactions logged. Read-only for compliance.';

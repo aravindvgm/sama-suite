@@ -1,19 +1,30 @@
 const Redis = require('ioredis');
 
-const redis = new Redis({
-  host: process.env.REDIS_HOST || '127.0.0.1',
-  port: process.env.REDIS_PORT || 6379,
-  password: process.env.REDIS_PASSWORD || undefined,
-  maxRetriesPerRequest: null,
-  enableReadyCheck: false,
-});
+let redis = null;
 
-redis.on('connect', () => {
-  console.log('✅ Redis connected');
-});
+// Only connect if Redis configuration exists
+if (process.env.REDIS_HOST) {
 
-redis.on('error', (err) => {
-  console.error('❌ Redis error:', err);
-});
+  redis = new Redis({
+    host: process.env.REDIS_HOST,
+    port: process.env.REDIS_PORT || 6379,
+    password: process.env.REDIS_PASSWORD || undefined,
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+  });
+
+  redis.on('connect', () => {
+    console.log('✅ Redis connected');
+  });
+
+  redis.on('error', (err) => {
+    console.error('❌ Redis error:', err.message);
+  });
+
+} else {
+
+  console.log('⚠️ Redis disabled (REDIS_HOST not provided)');
+
+}
 
 module.exports = redis;

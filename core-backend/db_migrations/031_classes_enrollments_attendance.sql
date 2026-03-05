@@ -1,3 +1,4 @@
+-- @no-transaction
 -- ============================================================
 -- MIGRATION 031: Classes, Sections, Student Enrollments, Attendance
 -- ============================================================
