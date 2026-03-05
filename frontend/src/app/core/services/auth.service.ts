@@ -11,7 +11,6 @@ export class AuthService {
 
   private readonly apiUrl = environment.apiUrl;
 
-  /** Access token stored in memory only */
   private accessToken: string | null = null;
   private currentUserId: string | null = null;
   private currentOrgId: string | null = null;
@@ -19,49 +18,43 @@ export class AuthService {
 
   constructor(private http: HttpClient) {}
 
-  // --------------------------------------------------
   // LOGIN
-  // --------------------------------------------------
-
   login(payload: {
     organizationId: string;
     email: string;
     password: string;
   }): Observable<string> {
+
+    const url = `${this.apiUrl}/auth/login`;
+
     return this.http.post<{ token: string }>(
-      `${this.apiUrl}/auth/login`,
+      url,
       payload,
       { withCredentials: true }
     ).pipe(
-      tap(response => {
-        this.setAccessToken(response.token);
-      }),
-      map(response => response.token)
+      tap(res => this.setAccessToken(res.token)),
+      map(res => res.token)
     );
   }
 
-  // --------------------------------------------------
   // REFRESH TOKEN
-  // --------------------------------------------------
-
   refreshToken(): Observable<string> {
+
+    const url = `${this.apiUrl}/auth/refresh`;
+
     return this.http.post<{ token: string }>(
-      `${this.apiUrl}/auth/refresh`,
+      url,
       {},
       { withCredentials: true }
     ).pipe(
-      tap(response => {
-        this.setAccessToken(response.token);
-      }),
-      map(response => response.token)
+      tap(res => this.setAccessToken(res.token)),
+      map(res => res.token)
     );
   }
 
-  // --------------------------------------------------
   // TOKEN HANDLING
-  // --------------------------------------------------
+  private setAccessToken(token: string): void {
 
-  setAccessToken(token: string): void {
     this.accessToken = token;
 
     try {
@@ -70,11 +63,7 @@ export class AuthService {
       this.currentUserId = payload?.sub ?? null;
       this.currentOrgId = payload?.organizationId ?? null;
 
-      if (payload?.role) {
-        this.currentRoles = [payload.role];
-      } else {
-        this.currentRoles = [];
-      }
+      this.currentRoles = payload?.role ? [payload.role] : [];
 
     } catch {
       this.currentUserId = null;
@@ -102,10 +91,6 @@ export class AuthService {
   hasRole(role: string): boolean {
     return this.currentRoles.includes(role);
   }
-
-  // --------------------------------------------------
-  // LOGOUT
-  // --------------------------------------------------
 
   logout(): void {
     this.accessToken = null;

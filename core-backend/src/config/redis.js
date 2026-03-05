@@ -2,7 +2,6 @@ const Redis = require('ioredis');
 
 let redis = null;
 
-// Only connect if Redis configuration exists
 if (process.env.REDIS_HOST) {
 
   redis = new Redis({
