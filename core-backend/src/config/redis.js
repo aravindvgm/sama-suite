@@ -3,7 +3,6 @@ const Redis = require('ioredis');
 let redis = null;
 
 if (process.env.REDIS_HOST) {
-
   redis = new Redis({
     host: process.env.REDIS_HOST,
     port: process.env.REDIS_PORT || 6379,
@@ -17,13 +16,11 @@ if (process.env.REDIS_HOST) {
   });
 
   redis.on('error', (err) => {
-    console.error('❌ Redis error:', err.message);
+    console.error('❌ Redis error:', err);
   });
 
 } else {
-
   console.log('⚠️ Redis disabled (REDIS_HOST not provided)');
-
 }
 
 module.exports = redis;
