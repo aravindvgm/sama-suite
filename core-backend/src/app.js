@@ -15,26 +15,16 @@ app.set("trust proxy", 1);
 
 app.use(helmet());
 
-const allowedOrigins = [
-  "http://localhost:4200",
-  "https://sama-suite-dev.netlify.app"
-];
-
-app.use(cors({
-  origin: function (origin, callback) {
-
-    // allow non-browser requests
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error("CORS not allowed"));
-    }
-
-  },
+const corsOptions = {
+  origin: [
+    "http://localhost:4200",
+    "https://sama-suite-dev.netlify.app"
+  ],
   credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));  // explicit preflight for all routes
 
 
 // ======================================================
