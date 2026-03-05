@@ -10,7 +10,10 @@ const router = express.Router({ mergeParams: true });
 // REGISTER
 router.post('/:organizationId/register', authController.register);
 
-// LOGIN — layered rate limiting (IP / email-fail / IP+email combined)
+// LOGIN — global identity model (no organizationId in URL; org resolved via memberships)
+router.post('/login', loginRateLimiter, authController.login);
+
+// LOGIN — legacy org-scoped URL kept for backward compatibility
 router.post('/:organizationId/login', loginRateLimiter, authController.login);
 
 // REFRESH — reads HttpOnly cookie; no JWT required (token may be expired)

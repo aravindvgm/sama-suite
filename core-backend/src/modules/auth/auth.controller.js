@@ -2,11 +2,13 @@
 
 const authService = require("./auth.service");
 
+const isProd = process.env.NODE_ENV === "production";
+
 const COOKIE_CONFIG = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "strict",
-  path: "/auth/refresh",
+  secure: isProd,
+  sameSite: isProd ? "none" : "lax",
+  path: "/api/auth/refresh",
 };
 
 // =======================
@@ -186,7 +188,7 @@ req.cookies && req.cookies.refreshToken;
 
 await authService.logoutSession(refreshToken);
 
-res.clearCookie("refreshToken",{ path:"/auth/refresh" });
+res.clearCookie("refreshToken",{ path:"/api/auth/refresh" });
 
 res.json({ success:true });
 
@@ -221,7 +223,7 @@ async(req,res)=>{
 
 try{
 
-const userId = req.user && req.user.sub;
+const userId = req.user && req.user.userId;
 
 if(!userId){
 return res.status(401).json({
@@ -232,7 +234,7 @@ message:"UNAUTHORIZED"
 
 await authService.logoutAllSessions(userId);
 
-res.clearCookie("refreshToken",{ path:"/auth/refresh" });
+res.clearCookie("refreshToken",{ path:"/api/auth/refresh" });
 
 return res.json({ success:true });
 
