@@ -1,4 +1,4 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://sama-backend.onrender.com/api'
+  apiUrl: 'https://sama-suite.onrender.com/api'
 };
