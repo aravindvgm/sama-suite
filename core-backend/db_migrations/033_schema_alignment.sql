@@ -121,6 +121,4 @@ WHERE NOT EXISTS (
   WHERE m.user_id = um.user_id
   AND m.organization_id = um.organization_id
 );
-ON CONFLICT (user_id, organization_id) DO NOTHING;
-
 COMMIT;
