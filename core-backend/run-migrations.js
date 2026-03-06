@@ -47,14 +47,17 @@ function findPsql() {
   );
 }
 
-const PSQL = findPsql();
-
 // Run a SQL file through psql.  psql sends each statement as a separate
 // protocol message, which allows CREATE INDEX CONCURRENTLY to execute outside
 // a transaction block.  -v ON_ERROR_STOP=1 causes psql to exit non-zero on
 // the first error so execFileSync throws and the migration is not recorded.
+//
+// findPsql() is called lazily here (not at module load time) so that a missing
+// psql binary does not prevent the module from loading or stop regular
+// (non-CONCURRENTLY) migrations from running.
 function runWithPsql(filePath) {
-  execFileSync(PSQL, ['-v', 'ON_ERROR_STOP=1', '-f', filePath], {
+  const psql = findPsql();
+  execFileSync(psql, ['-v', 'ON_ERROR_STOP=1', '-f', filePath], {
     env:   pgEnv,
     stdio: 'inherit',
   });
