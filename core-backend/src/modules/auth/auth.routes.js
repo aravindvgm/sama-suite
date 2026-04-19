@@ -1,29 +1,69 @@
 'use strict';
 
-const express          = require('express');
-const authController   = require('./auth.controller');
+const express = require('express');
+const authController = require('./auth.controller');
 const loginRateLimiter = require('../../middleware/loginRateLimiter.middleware');
-const verifyToken      = require('../../middleware/auth.middleware');
+const verifyToken = require('../../middleware/auth.middleware');
 
 const router = express.Router({ mergeParams: true });
 
-// REGISTER
-router.post('/:organizationId/register', authController.register);
+/* -------------------------------------------------------------------------- */
+/* REGISTER */
+/* -------------------------------------------------------------------------- */
 
-// LOGIN — global identity model (no organizationId in URL; org resolved via memberships)
-router.post('/login', loginRateLimiter, authController.login);
+router.post(
+  '/:organizationId/register',
+  authController.register
+);
 
-// LOGIN — legacy org-scoped URL kept for backward compatibility
-router.post('/:organizationId/login', loginRateLimiter, authController.login);
+/* -------------------------------------------------------------------------- */
+/* LOGIN (Primary Route) */
+/* Global login — organization resolved from memberships */
+/* -------------------------------------------------------------------------- */
 
-// REFRESH — reads HttpOnly cookie; no JWT required (token may be expired)
-// Cookie is scoped to this path so it is only sent on refresh requests.
-router.post('/refresh', authController.refresh);
+router.post(
+  '/login',
+  loginRateLimiter,
+  authController.login
+);
 
-// LOGOUT — revokes the single session bound to the current cookie
-router.post('/logout', authController.logout);
+/* -------------------------------------------------------------------------- */
+/* LOGIN (Legacy org scoped) */
+/* Keeps backward compatibility with /:organizationId/login */
+/* -------------------------------------------------------------------------- */
 
-// LOGOUT ALL — revokes every session for the authenticated user
-router.post('/logout-all', verifyToken, authController.logoutAll);
+router.post(
+  '/:organizationId/login',
+  loginRateLimiter,
+  authController.login
+);
+
+/* -------------------------------------------------------------------------- */
+/* REFRESH TOKEN */
+/* -------------------------------------------------------------------------- */
+
+router.post(
+  '/refresh',
+  authController.refresh
+);
+
+/* -------------------------------------------------------------------------- */
+/* LOGOUT CURRENT SESSION */
+/* -------------------------------------------------------------------------- */
+
+router.post(
+  '/logout',
+  authController.logout
+);
+
+/* -------------------------------------------------------------------------- */
+/* LOGOUT ALL SESSIONS */
+/* -------------------------------------------------------------------------- */
+
+router.post(
+  '/logout-all',
+  verifyToken,
+  authController.logoutAll
+);
 
 module.exports = router;
