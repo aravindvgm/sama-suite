@@ -1,41 +1,44 @@
 ﻿const { Pool } = require('pg');
 
-const isProduction = process.env.NODE_ENV === "production";
+let pool;
 
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 5432,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
+if (process.env.DATABASE_URL) {
+  // ✅ Production (Render)
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false,
+    },
+  });
 
-  min: 2,
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  console.log("🚀 Using DATABASE_URL (Production)");
+} else {
+  // ✅ Local fallback (only for your machine)
+  pool = new Pool({
+    host: 'localhost',
+    port: 5432,
+    database: 'sama_suite',
+    user: 'postgres',
+    password: 'password',
+  });
 
-  ssl: isProduction
-    ? { rejectUnauthorized: false }
-    : false,
-});
+  console.log("💻 Using LOCAL DB");
+}
 
-
-// Safe DB check (no crash)
+// Test connection
 (async () => {
   try {
     const client = await pool.connect();
-    console.log("✅ Database connected");
-    console.log("👉 DB Name:", process.env.DB_NAME);
-    console.log("👉 DB User:", process.env.DB_USER);
+    console.log("✅ Database connected successfully");
     client.release();
   } catch (err) {
     console.error("❌ Database connection failed");
-    console.error(err.message); // cleaner log
+    console.error(err.message);
   }
 })();
 
 pool.on("error", (err) => {
-  console.error("❌ Unexpected database error", err);
+  console.error("❌ Unexpected DB error", err);
 });
 
 module.exports = pool;
