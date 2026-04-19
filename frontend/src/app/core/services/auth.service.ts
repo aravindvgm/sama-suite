@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, throwError } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 
@@ -10,13 +10,25 @@ import { environment } from '../../../environments/environment';
 export class AuthService {
 
   private readonly apiUrl = environment.apiUrl;
+  private readonly tokenStorageKey = 'sama_suite_access_token';
 
   private accessToken: string | null = null;
   private currentUserId: string | null = null;
   private currentOrgId: string | null = null;
   private currentRoles: string[] = [];
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const stored = localStorage.getItem(this.tokenStorageKey);
+        if (stored) {
+          this.setAccessToken(stored);
+        }
+      }
+    } catch {
+      /* localStorage unavailable */
+    }
+  }
 
   // LOGIN
   login(payload: {
@@ -39,7 +51,7 @@ export class AuthService {
 
   // REFRESH TOKEN
   refreshToken(): Observable<string> {
-
+    /* POST to /auth/refresh temporarily disabled — no HTTP:
     const url = `${this.apiUrl}/auth/refresh`;
 
     return this.http.post<{ token: string }>(
@@ -50,12 +62,22 @@ export class AuthService {
       tap(res => this.setAccessToken(res.token)),
       map(res => res.token)
     );
+    */
+    return throwError(() => new Error('REFRESH_DISABLED'));
   }
 
   // TOKEN HANDLING
   private setAccessToken(token: string): void {
 
     this.accessToken = token;
+
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(this.tokenStorageKey, token);
+      }
+    } catch {
+      /* quota / private mode */
+    }
 
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
@@ -93,6 +115,13 @@ export class AuthService {
   }
 
   logout(): void {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(this.tokenStorageKey);
+      }
+    } catch {
+      /* ignore */
+    }
     this.accessToken = null;
     this.currentUserId = null;
     this.currentOrgId = null;

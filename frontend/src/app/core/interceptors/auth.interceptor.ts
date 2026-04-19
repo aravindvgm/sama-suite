@@ -47,7 +47,7 @@ export class AuthInterceptor implements HttpInterceptor {
           error.status === 401 &&
           !request.url.includes('/auth/refresh')
         ) {
-          return this.handle401(request, next);
+          return this.handle401(request, next, error);
         }
         return throwError(() => error);
       })
@@ -56,9 +56,11 @@ export class AuthInterceptor implements HttpInterceptor {
 
   private handle401(
     request: HttpRequest<unknown>,
-    next: HttpHandler
+    next: HttpHandler,
+    error: HttpErrorResponse
   ): Observable<HttpEvent<unknown>> {
 
+    /* refreshToken() temporarily disabled — entire prior refresh / retry flow:
     if (!this.isRefreshing) {
       this.isRefreshing = true;
       this.refreshSubject.next(null);
@@ -101,5 +103,14 @@ export class AuthInterceptor implements HttpInterceptor {
         return next.handle(cloned);
       })
     );
+    */
+
+    this.isRefreshing = false;
+    if (!this.redirecting) {
+      this.redirecting = true;
+      this.authService.logout();
+      this.router.navigate(['/login']);
+    }
+    return throwError(() => error);
   }
 }

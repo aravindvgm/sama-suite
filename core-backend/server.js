@@ -13,14 +13,7 @@ app.set("trust proxy", 1);
 
 
 // ======================================================
-// SECURITY
-// ======================================================
-
-app.use(helmet());
-
-
-// ======================================================
-// CORS CONFIGURATION
+// CORS CONFIGURATION (before helmet and routes)
 // ======================================================
 
 const allowedOrigins = [
@@ -30,15 +23,11 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: function (origin, callback) {
-
-    // allow non-browser tools (Postman, curl)
     if (!origin) return callback(null, true);
-
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-
-    return callback(new Error("CORS not allowed"));
+    return callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
   methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
@@ -47,6 +36,13 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
+
+
+// ======================================================
+// SECURITY
+// ======================================================
+
+app.use(helmet());
 
 
 // ======================================================

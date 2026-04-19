@@ -10,21 +10,36 @@ app.set("trust proxy", 1);
 
 
 // ======================================================
+// CORS CONFIGURATION (before helmet and routes)
+// ======================================================
+
+const allowedOrigins = [
+  "http://localhost:4200",
+  "https://sama-suite-dev.netlify.app"
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+  methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+  allowedHeaders: ["Content-Type","Authorization"]
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
+
+
+// ======================================================
 // SECURITY
 // ======================================================
 
 app.use(helmet());
-
-const corsOptions = {
-  origin: [
-    "http://localhost:4200",
-    "https://sama-suite-dev.netlify.app"
-  ],
-  credentials: true
-};
-
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));  // explicit preflight for all routes
 
 
 // ======================================================

@@ -35,7 +35,7 @@ organizationId:this.organizationId
 
 next:()=>{
 this.loading=false;
-this.router.navigate(['/dashboard']);
+this.router.navigate(['/attendance/dashboard']);
 },
 
 error:(err)=>{
