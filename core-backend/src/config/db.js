@@ -1,79 +1,72 @@
-﻿const { Pool } = require('pg');
+﻿const { Pool } = require("pg");
 
+// ----------------------------------------------------
+// Validate required environment variables (no fallbacks)
+// ----------------------------------------------------
+const REQUIRED_VARS = ["DB_HOST", "DB_NAME", "DB_USER", "DB_PASSWORD"];
+
+for (const key of REQUIRED_VARS) {
+  if (!process.env[key]) {
+    console.warn(`⚠️ Missing env: ${key}`);
+  }
+}
+
+// ----------------------------------------------------
+// Create DB pool (Render-safe config)
+// ----------------------------------------------------
 const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 5432,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
 
-  host: process.env.DB_HOST || 'localhost',
-
-  port: process.env.DB_PORT
-    ? Number(process.env.DB_PORT)
-    : 5432,
-
-  database: process.env.DB_NAME || 'sama_suite',
-
-  user: process.env.DB_USER || 'postgres',
-
-  password: process.env.DB_PASSWORD || 'password',
-
-  min: 5,
-
-  max: 20,
-
+  min: 2,
+  max: 10,
   idleTimeoutMillis: 30000,
-
   connectionTimeoutMillis: 5000,
 
-  ssl:
-    process.env.DB_SSL === "true"
-      ? { rejectUnauthorized: false }
-      : false,
-
+  // Render Postgres requires SSL
+  ssl: process.env.NODE_ENV === "production"
+    ? { rejectUnauthorized: false }
+    : false,
 });
 
-
-// Test DB connection
-
+// ----------------------------------------------------
+// Log connection success (non-blocking)
+// ----------------------------------------------------
 (async () => {
-
   try {
-
     const client = await pool.connect();
 
     console.log("✅ Database connected");
-
-    console.log("👉 DB Name:", process.env.DB_NAME);
-
-    console.log("👉 DB User:", process.env.DB_USER);
+    console.log("👉 DB_HOST:", process.env.DB_HOST);
+    console.log("👉 DB_NAME:", process.env.DB_NAME);
+    console.log("👉 DB_USER:", process.env.DB_USER);
 
     client.release();
-
   } catch (err) {
-
     console.error("❌ Database connection failed");
+    console.error(err?.message || err);
 
-    console.error(err);
-
-    process.exit(1);
-
+    // ❌ DO NOT exit (keeps Render alive for debugging)
   }
-
 })();
 
-
+// ----------------------------------------------------
+// Handle pool errors
+// ----------------------------------------------------
 pool.on("error", (err) => {
-
-  console.error("❌ Unexpected database error", err);
-
+  console.error("❌ Unexpected database error:", err?.message || err);
 });
 
-
+// ----------------------------------------------------
+// Graceful shutdown
+// ----------------------------------------------------
 process.on("SIGINT", async () => {
-
   console.log("Closing database pool...");
-
   await pool.end();
-
   process.exit(0);
-
 });
 
 module.exports = pool;
