@@ -1,12 +1,13 @@
-// SAMA-SUITE backend entry point
-
-// dotenv MUST be first
-require("dotenv").config();
+// ----------------------------------------------------
+// Load .env ONLY for local development (NEVER in Render)
+// ----------------------------------------------------
+if (!process.env.RENDER) {
+  require("dotenv").config();
+}
 
 // ----------------------------------------------------
 // Global crash guards (Render-friendly logging)
 // ----------------------------------------------------
-
 const GLOBAL_GUARD_KEY = "__SAMA_SUITE_GLOBAL_CRASH_GUARDS__";
 if (!global[GLOBAL_GUARD_KEY]) {
   global[GLOBAL_GUARD_KEY] = true;
@@ -14,13 +15,11 @@ if (!global[GLOBAL_GUARD_KEY]) {
   process.on("uncaughtException", (err) => {
     console.error("FATAL: uncaughtException");
     console.error(err?.stack || err);
-    // Intentionally do not exit; keep instance alive for Render log visibility.
   });
 
   process.on("unhandledRejection", (reason) => {
     console.error("FATAL: unhandledRejection");
     console.error(reason?.stack || reason);
-    // Intentionally do not exit; keep instance alive for Render log visibility.
   });
 
   process.on("exit", (code) => {
@@ -28,71 +27,60 @@ if (!global[GLOBAL_GUARD_KEY]) {
   });
 
   process.on("SIGTERM", () => {
-    console.warn("Received SIGTERM. Process will exit when event loop drains.");
+    console.warn("Received SIGTERM");
   });
 
   process.on("SIGINT", () => {
-    console.warn("Received SIGINT. Process will exit when event loop drains.");
+    console.warn("Received SIGINT");
   });
 }
 
+// ----------------------------------------------------
+// Startup logs (VERY IMPORTANT for debugging)
+// ----------------------------------------------------
 console.log("=================================");
 console.log("SAMA-SUITE Booting...");
-console.log("Company: Sama Technologies");
 console.log("Environment:", process.env.NODE_ENV);
+console.log("RENDER:", process.env.RENDER);
 console.log("DB_HOST:", process.env.DB_HOST);
+console.log("DB_PORT:", process.env.DB_PORT);
 console.log("DB_NAME:", process.env.DB_NAME);
+console.log("DB_USER:", process.env.DB_USER);
+console.log("DB_PASSWORD loaded:", !!process.env.DB_PASSWORD);
 console.log("JWT_SECRET loaded:", !!process.env.JWT_SECRET);
 console.log("=================================");
 
-
 // ----------------------------------------------------
-// Validate critical environment variables
+// Validate critical env
 // ----------------------------------------------------
-
 if (!process.env.JWT_SECRET) {
-  // Do not crash the instance; keep server up for Render debugging.
-  console.error("WARN: JWT_SECRET missing (auth will fail until configured).");
+  console.error("WARN: JWT_SECRET missing");
 }
-
 
 // ----------------------------------------------------
 // Load server
 // ----------------------------------------------------
-
 const app = require("./server");
 const PORT = process.env.PORT || 3000;
 
-
 // ----------------------------------------------------
-// Optional migrations
+// Background migrations (non-blocking)
 // ----------------------------------------------------
-
 async function runStartupTasks() {
-
   try {
-
     const { runMigrations } = require("./run-migrations");
-
     console.log("Running database migrations...");
     await runMigrations();
     console.log("Migrations complete.");
-
   } catch (err) {
-
-    console.warn("Migration skipped or failed:", err?.message || err);
-
+    console.warn("Migration skipped:", err?.message || err);
   }
-
 }
 
-
 // ----------------------------------------------------
-// Start server
+// Start server FIRST (important)
 // ----------------------------------------------------
-
 function start() {
-  // Server must start FIRST (Render fast boot).
   const server = app.listen(PORT, () => {
     console.log("=================================");
     console.log("SAMA-SUITE Backend Started");
@@ -101,11 +89,11 @@ function start() {
   });
 
   server.on("error", (err) => {
-    console.error("FATAL: server listen error");
+    console.error("FATAL: server error");
     console.error(err?.stack || err);
   });
 
-  // Migrations must run in background and never crash startup.
+  // Run migrations AFTER server starts
   setImmediate(() => {
     runStartupTasks().catch((err) => {
       console.warn("Startup tasks failed:", err?.message || err);
@@ -113,11 +101,4 @@ function start() {
   });
 }
 
-
-try {
-  start();
-} catch (err) {
-  console.error("FATAL: Startup failure:", err?.message || err);
-  console.error(err?.stack || err);
-  // Do not exit; keep process alive so Render logs remain visible.
-}
+start();
