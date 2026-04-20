@@ -14,7 +14,7 @@ if (process.env.DATABASE_URL) {
   // ✅ Production / Render
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    ssl: process.env.RENDER ? { rejectUnauthorized: false } : false,
   });
 
   console.log("🚀 DB: Using DATABASE_URL");
@@ -26,7 +26,6 @@ if (process.env.DATABASE_URL) {
     database: process.env.DB_NAME || "sama_suite",
     user: process.env.DB_USER || "postgres",
     password: process.env.DB_PASSWORD || "password",
-    ssl: false,
   });
 
   console.log("💻 DB: Using LOCAL CONFIG");
