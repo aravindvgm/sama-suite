@@ -14,7 +14,7 @@ if (process.env.DATABASE_URL) {
   // ✅ Production / Render
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: isProduction ? { rejectUnauthorized: false } : false,
+    ssl: { rejectUnauthorized: false },
   });
 
   console.log("🚀 DB: Using DATABASE_URL");
