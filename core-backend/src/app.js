@@ -94,6 +94,7 @@ const securityRoutes    = require("./modules/security/security.routes");
 const classesRoutes     = require("./modules/classes/classes.routes");
 const enrollmentsRoutes = require("./modules/enrollments/enrollments.routes");
 const attendanceRoutes  = require("./modules/attendance/attendance.routes");
+const adminDashboardRoutes = require("./modules/admin/adminDashboard.routes");
 
 
 // ======================================================
@@ -159,6 +160,12 @@ app.use("/api/:organizationId/attendance", tenantStack, attendanceRoutes);
 
 app.use("/api/org", verifyToken, usersRoutes);
 
+// ======================================================
+// BASIC ADMIN EXAMPLE (ROLE-BASED)
+// ======================================================
+
+app.use("/api/admin", adminDashboardRoutes);
+
 
 // ======================================================
 // HEALTH CHECKS (VERY IMPORTANT FOR RENDER / MONITORING)
@@ -189,6 +196,14 @@ app.get("/api/health", (_req, res) => {
     success: true,
     status: "ok",
     timestamp: new Date().toISOString()
+  });
+});
+
+// Simple alive check (public)
+app.get("/health", (_req, res) => {
+  return res.json({
+    success: true,
+    message: "Server is running"
   });
 });
 

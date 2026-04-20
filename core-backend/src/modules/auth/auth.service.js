@@ -1,10 +1,8 @@
 "use strict";
 
 const bcrypt = require("bcrypt");
-const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const pool = require("../../config/db");
-const sessionSecurity = require("../../services/sessionSecurity.service");
 
 /* -------------------------------------------------------------------------- */
 /* Error Classes */
@@ -110,8 +108,9 @@ function signAuthToken(payload, secret) {
 /* Register */
 /* -------------------------------------------------------------------------- */
 
-async function register(organizationId, body) {
-  const { email, password, full_name } = body;
+async function register(organizationId, data) {
+  console.log("REGISTER BODY:", JSON.stringify(data));
+  const { email, password, full_name, organizationName } = data;
 
   if (!email || !password) {
     throw new ValidationError("INVALID_DATA");
@@ -119,13 +118,41 @@ async function register(organizationId, body) {
 
   const normalizedEmail = email.toLowerCase().trim();
 
-  const org = await pool.query(
-    `SELECT id FROM organizations WHERE id=$1::uuid`,
-    [organizationId]
-  );
+  if (organizationId) {
+    const org = await pool.query(
+      `SELECT id FROM organizations WHERE id=$1::uuid`,
+      [organizationId]
+    );
 
-  if (!org.rowCount) {
-    throw new AuthError("INVALID_ORGANIZATION_ID");
+    if (!org.rowCount) {
+      throw new AuthError("INVALID_ORGANIZATION_ID");
+    }
+  } else {
+    const orgName =
+      organizationName ||
+      (normalizedEmail.split("@")[1]
+        ? `${normalizedEmail.split("@")[1]} Org`
+        : "New Organization");
+
+    const baseCode = organizationName || normalizedEmail.split("@")[1] || "org";
+
+    // safer unique code
+    const orgCode = `${baseCode}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+    // FIXED industry handling
+    const industryType =
+      data.industry_type && data.industry_type.trim()
+        ? data.industry_type.trim()
+        : "general";
+
+    const { rows: [org] } = await pool.query(
+      `INSERT INTO organizations (name, code, industry_type)
+       VALUES ($1, $2, $3)
+       RETURNING id`,
+      [orgName, orgCode, industryType]
+    );
+
+    organizationId = org.id;
   }
 
   const exists = await pool.query(
@@ -141,19 +168,32 @@ async function register(organizationId, body) {
 
   const { rows: [user] } = await pool.query(
     `INSERT INTO users
-     (email,password_hash,full_name,organization_id,is_active)
-     VALUES ($1,$2,$3,$4,true)
+     (email,password_hash,full_name,organization_id,role,is_active)
+     VALUES ($1,$2,$3,$4,$5,true)
      RETURNING id,email,full_name`,
     [
       normalizedEmail,
       passwordHash,
       full_name || null,
-      organizationId
+      organizationId,
+      "user"
     ]
   );
 
+  const membershipCount = await pool.query(
+    `SELECT COUNT(*)::int AS count
+     FROM memberships
+     WHERE organization_id = $1`,
+    [organizationId]
+  );
+
+  const isFirstUserInOrg = (membershipCount.rows[0]?.count || 0) === 0;
+  const membershipRole = isFirstUserInOrg ? "admin" : "user";
+
+  const roleKey = isFirstUserInOrg ? "org_admin" : "org_user";
   const roleResult = await pool.query(
-    `SELECT id FROM roles WHERE key='org_admin' LIMIT 1`
+    `SELECT id FROM roles WHERE key=$1 LIMIT 1`,
+    [roleKey]
   );
 
   const roleId = roleResult.rows[0]?.id;
@@ -164,9 +204,10 @@ async function register(organizationId, body) {
 
   await pool.query(
     `INSERT INTO memberships
-     (user_id,organization_id,role_id,status)
-     VALUES ($1,$2,$3,'active')`,
-    [user.id, organizationId, roleId]
+     (user_id,organization_id,role_id,role,status)
+     VALUES ($1,$2,$3,$4,'active')
+     ON CONFLICT (user_id, organization_id) DO NOTHING`,
+    [user.id, organizationId, roleId, membershipRole]
   );
 
   return {
@@ -181,7 +222,6 @@ async function register(organizationId, body) {
 /* -------------------------------------------------------------------------- */
 
 async function loginUser(email, password, _organizationId, ctx = {}) {
-
   if (!email || !password) {
     throw new ValidationError("INVALID_DATA");
   }
@@ -209,7 +249,6 @@ async function loginUser(email, password, _organizationId, ctx = {}) {
   );
 
   if (!rowCount) {
-
     await recordLoginAudit({
       organizationId: null,
       userId: null,
@@ -222,7 +261,6 @@ async function loginUser(email, password, _organizationId, ctx = {}) {
     });
 
     throw new AuthError("INVALID_CREDENTIALS");
-
   }
 
   const user = rows[0];
@@ -232,39 +270,13 @@ async function loginUser(email, password, _organizationId, ctx = {}) {
   }
 
   if (!user.is_active) {
-
-    await recordLoginAudit({
-      organizationId: null,
-      userId: user.id,
-      email,
-      success: false,
-      failureCode: "ACCOUNT_INACTIVE",
-      ipAddress,
-      userAgent,
-      requestId
-    });
-
     throw new AuthError("ACCOUNT_INACTIVE");
-
   }
 
   const match = await bcrypt.compare(password, user.password_hash);
 
   if (!match) {
-
-    await recordLoginAudit({
-      organizationId: null,
-      userId: user.id,
-      email,
-      success: false,
-      failureCode: "INVALID_CREDENTIALS",
-      ipAddress,
-      userAgent,
-      requestId
-    });
-
     throw new AuthError("INVALID_CREDENTIALS");
-
   }
 
   const { rows: memberships } = await pool.query(
@@ -302,7 +314,6 @@ async function loginUser(email, password, _organizationId, ctx = {}) {
       role: role_key
     }
   };
-
 }
 
 /* -------------------------------------------------------------------------- */

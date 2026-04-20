@@ -61,7 +61,9 @@ if (!process.env.JWT_SECRET) {
 // Load server
 // ----------------------------------------------------
 const app = require("./server");
-const PORT = process.env.PORT || 3000;
+// Render provides PORT via env. Locally we always bind to 5000 to avoid
+// accidentally inheriting a production-oriented PORT from .env.
+const PORT = process.env.RENDER ? (process.env.PORT || 5000) : 5000;
 
 // ----------------------------------------------------
 // Background migrations (non-blocking)
@@ -83,8 +85,7 @@ async function runStartupTasks() {
 function start() {
   const server = app.listen(PORT, () => {
     console.log("=================================");
-    console.log("SAMA-SUITE Backend Started");
-    console.log("Port:", PORT);
+    console.log(`Server running on port ${PORT}`);
     console.log("=================================");
   });
 

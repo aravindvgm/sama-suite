@@ -1,40 +1,65 @@
-// ======================================================
-// authorizePlatformRoles — for platform-level roles.
-// NOTE: platformRole is not currently encoded in the JWT by auth.service.js.
-// This guard will always deny until platformRole is added to the token payload.
-// ======================================================
-function authorizePlatformRoles(...allowedRoles) {
-  return (req, res, next) => {
-    const role = req.user?.platformRole;
-    if (!role || !allowedRoles.map(r => r.toLowerCase()).includes(role.toLowerCase())) {
+const pool = require("../config/db");
+
+function requireRole(roles) {
+  const allowed = Array.isArray(roles) ? roles : [];
+  const allowedLower = new Set(allowed.map((r) => String(r).toLowerCase()));
+
+  return async function requireRoleMiddleware(req, res, next) {
+    try {
+      const membershipRole = req.organization?.role;
+
+      if (membershipRole) {
+        const role = String(membershipRole || "").toLowerCase();
+        if (!allowedLower.has(role)) {
+          return res.status(403).json({
+            success: false,
+            message: "FORBIDDEN"
+          });
+        }
+        return next();
+      }
+
+      const userId = req.user?.userId;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: "UNAUTHORIZED"
+        });
+      }
+
+      const result = await pool.query("SELECT role FROM users WHERE id = $1", [userId]);
+      const role = String(result.rows[0]?.role || "").toLowerCase();
+
+      if (!allowedLower.has(role)) {
+        return res.status(403).json({
+          success: false,
+          message: "FORBIDDEN"
+        });
+      }
+
+      return next();
+
+    } catch (_err) {
       return res.status(403).json({
         success: false,
-        message: "Platform access denied",
+        message: "FORBIDDEN"
       });
     }
-    next();
   };
 }
 
-// ======================================================
-// authorizeOrgRoles — for organization-level roles.
-// auth.middleware.js sets req.user.role from the JWT claim.
-// Case is normalized so "ORG_ADMIN" matches "org_admin" from the DB.
-// ======================================================
+// Backward-compatible aliases used by existing routes
 function authorizeOrgRoles(...allowedRoles) {
-  return (req, res, next) => {
-    const role = req.user?.role;
-    if (!role || !allowedRoles.map(r => r.toLowerCase()).includes(role.toLowerCase())) {
-      return res.status(403).json({
-        success: false,
-        message: "Organization access denied",
-      });
-    }
-    next();
-  };
+  return requireRole(allowedRoles);
+}
+
+function authorizePlatformRoles(...allowedRoles) {
+  return requireRole(allowedRoles);
 }
 
 module.exports = {
-  authorizePlatformRoles,
+  requireRole,
   authorizeOrgRoles,
+  authorizePlatformRoles
 };

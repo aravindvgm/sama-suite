@@ -57,8 +57,10 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // ROUTES
 // ======================================================
 
+const authRoutes = require("./src/modules/auth/auth.routes");
 const routes = require("./routes/index");
 
+app.use("/api/auth", authRoutes);
 app.use("/api", routes);
 
 
@@ -82,6 +84,15 @@ app.get("/api/health", (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+app.get("/health", (_req, res) => {
+  return res.json({
+    success: true,
+    message: "Server is running"
+  });
+});
+
+app.get("/test", (_req, res) => res.send("Server working"));
 
 
 // ======================================================
