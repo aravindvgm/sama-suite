@@ -52,6 +52,10 @@ app.use(helmet());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
+app.get("/test", (_req, res) => {
+  res.send("Server working");
+});
+
 
 // ======================================================
 // ROUTES
@@ -91,8 +95,6 @@ app.get("/health", (_req, res) => {
     message: "Server is running"
   });
 });
-
-app.get("/test", (_req, res) => res.send("Server working"));
 
 
 // ======================================================
