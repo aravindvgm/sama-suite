@@ -32,7 +32,6 @@
  *   npx tsx scripts/demoWarmup.ts
  */
 
-import { Pool }        from 'pg';
 import { performance } from 'perf_hooks';
 import * as crypto     from 'crypto';
 import * as path       from 'path';
@@ -48,17 +47,7 @@ const DASHBOARD_RUNS = 3;
 const ABSENTEES_RUNS = 3;
 const API_BASE_URL   = process.env.API_BASE_URL || 'http://localhost:3000';
 
-// ── Pool ───────────────────────────────────────────────────────────────────────
-
-const pool = new Pool({
-  host:     process.env.DB_HOST     || 'localhost',
-  port:     Number(process.env.DB_PORT) || 5432,
-  database: process.env.DB_NAME     || 'sama_suite',
-  user:     process.env.DB_USER     || 'postgres',
-  password: process.env.DB_PASSWORD || 'password',
-  max:      5,
-  ssl:      process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-});
+const pool = require('../src/config/db');
 
 // ── Queries — identical SQL to attendance.service.js (no EXPLAIN) ─────────────
 

@@ -24,7 +24,6 @@
  *   npx tsx scripts/verifyAttendanceIndexes.ts
  */
 
-import { Client }  from 'pg';
 import * as path   from 'path';
 import * as dotenv from 'dotenv';
 
@@ -39,18 +38,7 @@ const INDEXES = [
   'idx_att_org_date_absent',
 ] as const;
 
-// ── DB client factory ─────────────────────────────────────────────────────────
-
-function makeClient(): Client {
-  return new Client({
-    host:     process.env.DB_HOST     || 'localhost',
-    port:     Number(process.env.DB_PORT) || 5432,
-    database: process.env.DB_NAME     || 'sama_suite',
-    user:     process.env.DB_USER     || 'postgres',
-    password: process.env.DB_PASSWORD || 'password',
-    ssl:      process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-  });
-}
+const pool = require('../src/config/db');
 
 // ── Query ──────────────────────────────────────────────────────────────────────
 
@@ -110,14 +98,11 @@ async function main(): Promise<void> {
   console.log('  SAMA-SUITE Attendance — Index Verification (read-only)');
   console.log('══════════════════════════════════════════════════════════════\n');
 
-  const client = makeClient();
-  await client.connect();
-
   let allPresent = true;
 
   try {
     for (const indexName of INDEXES) {
-      const { rows } = await client.query<IndexRow>(VERIFY_SQL, [indexName]);
+      const { rows } = await pool.query(VERIFY_SQL, [indexName]);
 
       console.log(`┌─ ${indexName}`);
 
@@ -142,9 +127,7 @@ async function main(): Promise<void> {
 
       console.log(`└${'─'.repeat(60)}\n`);
     }
-  } finally {
-    await client.end();
-  }
+  } finally {}
 
   console.log('══════════════════════════════════════════════════════════════');
   if (allPresent) {

@@ -27,7 +27,6 @@
  *   npx tsx scripts/runScaleExplain.ts
  */
 
-import { Client }  from 'pg';
 import * as fs     from 'fs';
 import * as path   from 'path';
 import * as dotenv from 'dotenv';
@@ -49,18 +48,7 @@ const THRESHOLD_ROSTER_MS    = 500;
 const THRESHOLD_DASHBOARD_MS = 300;
 const THRESHOLD_ABSENTEES_MS = 400;
 
-// ── DB client factory ─────────────────────────────────────────────────────────
-
-function makeClient(): Client {
-  return new Client({
-    host:     process.env.DB_HOST     || 'localhost',
-    port:     Number(process.env.DB_PORT) || 5432,
-    database: process.env.DB_NAME     || 'sama_suite',
-    user:     process.env.DB_USER     || 'postgres',
-    password: process.env.DB_PASSWORD || 'password',
-    ssl:      process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-  });
-}
+const pool = require('../src/config/db');
 
 // ── EXPLAIN queries — identical SQL to attendance.service.js ──────────────────
 
@@ -131,11 +119,10 @@ ORDER  BY absent_days DESC, s.last_name ASC
 // ── Raw plan capture ──────────────────────────────────────────────────────────
 
 async function explainRaw(
-  client: Client,
   sql:    string,
   values: unknown[],
 ): Promise<string> {
-  const { rows } = await client.query({ text: sql, values });
+  const { rows } = await pool.query({ text: sql, values });
   return rows.map((r: Record<string, string>) => r['QUERY PLAN']).join('\n');
 }
 
@@ -145,16 +132,10 @@ async function runColdThenWarm(
   sql:    string,
   values: unknown[],
 ): Promise<{ cold: string; warm: string }> {
-  const client = makeClient();
-  await client.connect();
-  try {
-    await client.query('DISCARD ALL');
-    const cold = await explainRaw(client, sql, values);
-    const warm = await explainRaw(client, sql, values);
-    return { cold, warm };
-  } finally {
-    await client.end();
-  }
+  await pool.query('DISCARD ALL');
+  const cold = await explainRaw(sql, values);
+  const warm = await explainRaw(sql, values);
+  return { cold, warm };
 }
 
 // ── Seed data resolver ────────────────────────────────────────────────────────
@@ -166,8 +147,8 @@ interface SeedData {
   studentCount: number;
 }
 
-async function resolveSeedData(client: Client): Promise<SeedData> {
-  const { rows: orgRows } = await client.query<{ id: string }>(
+async function resolveSeedData(): Promise<SeedData> {
+  const { rows: orgRows } = await pool.query<{ id: string }>(
     `SELECT id FROM organizations WHERE code = $1 LIMIT 1`,
     [SEED_ORG_CODE],
   );
@@ -179,7 +160,7 @@ async function resolveSeedData(client: Client): Promise<SeedData> {
   }
   const orgId = orgRows[0].id;
 
-  const { rows: secRows } = await client.query<{ id: string }>(
+  const { rows: secRows } = await pool.query<{ id: string }>(
     `SELECT id FROM sections
      WHERE  organization_id = $1
        AND  deleted_at IS NULL
@@ -192,7 +173,7 @@ async function resolveSeedData(client: Client): Promise<SeedData> {
   }
   const sectionId = secRows[0].id;
 
-  const { rows: countRows } = await client.query<{ n: string }>(
+  const { rows: countRows } = await pool.query<{ n: string }>(
     `SELECT COUNT(*) AS n FROM students WHERE organization_id = $1 AND deleted_at IS NULL`,
     [orgId],
   );
@@ -236,14 +217,8 @@ async function main(): Promise<void> {
   // ── Resolve seed data ───────────────────────────────────────────────────────
 
   process.stdout.write('\n[1/4] Resolving scale dataset… ');
-  const resolveClient = makeClient();
-  await resolveClient.connect();
   let seed: SeedData;
-  try {
-    seed = await resolveSeedData(resolveClient);
-  } finally {
-    await resolveClient.end();
-  }
+  seed = await resolveSeedData();
   console.log('done.');
   console.log(`  students   : ${seed.studentCount}`);
   console.log(`  org_id     : ${seed.orgId}`);

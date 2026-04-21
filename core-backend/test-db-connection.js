@@ -5,16 +5,7 @@
  */
 
 require('dotenv').config({ path: '.env.staging' });
-const { Pool } = require('pg');
-
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  connectionTimeoutMillis: 5000,
-});
+const pool = require("./src/config/db");
 
 async function testConnection() {
   console.log('\n=== PostgreSQL Staging Database Connection Test ===\n');
