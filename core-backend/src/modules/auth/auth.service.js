@@ -2,325 +2,142 @@
 
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const pool = require("../../config/db");
+const authRepository = require("./auth.repository");
 
-/* -------------------------------------------------------------------------- */
-/* Error Classes */
-/* -------------------------------------------------------------------------- */
-
-class AuthError extends Error {
-  constructor(code) {
-    super(code);
-    this.name = "AuthError";
-    this.code = code;
-  }
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
 }
 
-class ValidationError extends AuthError {
-  constructor(code) {
-    super(code);
-    this.name = "ValidationError";
-  }
-}
+function signToken({ userId, organizationId }) {
+  const secret = process.env.JWT_SECRET;
 
-/* -------------------------------------------------------------------------- */
-/* Helpers */
-/* -------------------------------------------------------------------------- */
-
-function maskEmail(raw) {
-  const [local, domain] = (raw || "").split("@");
-  if (!local || !domain) return "***";
-  return `${local[0]}***@${domain}`;
-}
-
-async function recordLoginAudit({
-  organizationId,
-  userId,
-  email,
-  success,
-  failureCode,
-  ipAddress = null,
-  userAgent = null,
-  requestId = null
-}) {
-  try {
-    await pool.query(
-      `INSERT INTO audit_logs (
-        organization_id,
-        entity_type,
-        entity_id,
-        action,
-        changed_by,
-        actor_type,
-        actor_user_id,
-        reason,
-        ip_address,
-        user_agent,
-        request_id,
-        meta
-      )
-      VALUES (
-        $1::uuid,
-        'AUTH',
-        COALESCE($2::uuid, gen_random_uuid()),
-        $3,
-        $4::uuid,
-        $5,
-        $6::uuid,
-        $7,
-        $8,
-        $9,
-        $10,
-        $11::jsonb
-      )`,
-      [
-        organizationId,
-        userId || null,
-        success ? "LOGIN_SUCCESS" : "LOGIN_FAILURE",
-        userId || null,
-        success ? "USER" : "SYSTEM",
-        userId || null,
-        failureCode || null,
-        ipAddress,
-        userAgent,
-        requestId,
-        JSON.stringify({
-          email: maskEmail(email),
-          failureCode: failureCode || null
-        })
-      ]
-    );
-  } catch (err) {
-    console.error("[auth] audit log failure:", err.message);
-  }
-}
-
-function signAuthToken(payload, secret) {
-  return jwt.sign(payload, secret, {
-    algorithm: "HS256",
-    issuer: process.env.JWT_ISS || "SamaTechnologies",
-    audience: process.env.JWT_AUD || "SamaSuiteUsers",
-    expiresIn: process.env.JWT_EXPIRES || "15m"
-  });
-}
-
-/* -------------------------------------------------------------------------- */
-/* Register */
-/* -------------------------------------------------------------------------- */
-
-async function register(organizationId, data) {
-  console.log("REGISTER BODY:", JSON.stringify(data));
-  const { email, password, full_name, organizationName } = data;
-
-  if (!email || !password) {
-    throw new ValidationError("INVALID_DATA");
+  if (!secret) {
+    const err = new Error("JWT_SECRET_NOT_CONFIGURED");
+    err.code = "SERVER_MISCONFIGURED";
+    throw err;
   }
 
-  const normalizedEmail = email.toLowerCase().trim();
-
-  if (organizationId) {
-    const org = await pool.query(
-      `SELECT id FROM organizations WHERE id=$1::uuid`,
-      [organizationId]
-    );
-
-    if (!org.rowCount) {
-      throw new AuthError("INVALID_ORGANIZATION_ID");
+  return jwt.sign(
+    { user_id: userId, organization_id: organizationId },
+    secret,
+    {
+      algorithm: "HS256",
+      expiresIn: process.env.JWT_EXPIRES_IN || "7d",
     }
-  } else {
-    const orgName =
-      organizationName ||
-      (normalizedEmail.split("@")[1]
-        ? `${normalizedEmail.split("@")[1]} Org`
-        : "New Organization");
+  );
+}
 
-    const baseCode = organizationName || normalizedEmail.split("@")[1] || "org";
+async function register(payload) {
+  const email = String(payload?.email || "").trim().toLowerCase();
+  const password = String(payload?.password || "");
+  const fullName = String(payload?.full_name || "").trim();
+  const organizationName = String(payload?.organizationName || "").trim();
 
-    // safer unique code
-    const orgCode = `${baseCode}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-
-    // FIXED industry handling
-    const industryType =
-      data.industry_type && data.industry_type.trim()
-        ? data.industry_type.trim()
-        : "general";
-
-    const { rows: [org] } = await pool.query(
-      `INSERT INTO organizations (name, code, industry_type)
-       VALUES ($1, $2, $3)
-       RETURNING id`,
-      [orgName, orgCode, industryType]
-    );
-
-    organizationId = org.id;
+  if (!email || !password || !fullName || !organizationName) {
+    const err = new Error("INVALID_REGISTRATION_DATA");
+    err.code = "VALIDATION_ERROR";
+    throw err;
   }
 
-  const exists = await pool.query(
-    `SELECT id FROM users WHERE email=$1`,
-    [normalizedEmail]
-  );
+  if (!isValidEmail(email)) {
+    const err = new Error("INVALID_EMAIL");
+    err.code = "VALIDATION_ERROR";
+    throw err;
+  }
 
-  if (exists.rowCount) {
-    throw new AuthError("EMAIL_ALREADY_EXISTS");
+  if (password.length < 8) {
+    const err = new Error("PASSWORD_TOO_SHORT");
+    err.code = "VALIDATION_ERROR";
+    throw err;
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  const { rows: [user] } = await pool.query(
-    `INSERT INTO users
-     (email,password_hash,full_name,organization_id,role,is_active)
-     VALUES ($1,$2,$3,$4,$5,true)
-     RETURNING id,email,full_name`,
-    [
-      normalizedEmail,
+  let created;
+
+  try {
+    created = await authRepository.createOrganizationAndUser({
+      organizationName,
+      email,
       passwordHash,
-      full_name || null,
-      organizationId,
-      "user"
-    ]
-  );
+      fullName,
+    });
+  } catch (e) {
+    console.error("REGISTER ERROR:", e.message);
 
-  const membershipCount = await pool.query(
-    `SELECT COUNT(*)::int AS count
-     FROM memberships
-     WHERE organization_id = $1`,
-    [organizationId]
-  );
+    if (e?.code === "23505") {
+      const err = new Error("EMAIL_ALREADY_EXISTS");
+      err.code = "EMAIL_ALREADY_EXISTS";
+      throw err;
+    }
 
-  const isFirstUserInOrg = (membershipCount.rows[0]?.count || 0) === 0;
-  const membershipRole = isFirstUserInOrg ? "admin" : "user";
-
-  const roleKey = isFirstUserInOrg ? "org_admin" : "org_user";
-  const roleResult = await pool.query(
-    `SELECT id FROM roles WHERE key=$1 LIMIT 1`,
-    [roleKey]
-  );
-
-  const roleId = roleResult.rows[0]?.id;
-
-  if (!roleId) {
-    throw new AuthError("ROLE_NOT_FOUND");
+    throw e;
   }
 
-  await pool.query(
-    `INSERT INTO memberships
-     (user_id,organization_id,role_id,role,status)
-     VALUES ($1,$2,$3,$4,'active')
-     ON CONFLICT (user_id, organization_id) DO NOTHING`,
-    [user.id, organizationId, roleId, membershipRole]
-  );
+  const token = signToken({
+    userId: created.user.id,
+    organizationId: created.organization.id,
+  });
 
   return {
-    success: true,
-    message: "User registered successfully",
-    user
+    token,
+    user: created.user,
   };
 }
 
-/* -------------------------------------------------------------------------- */
-/* Login */
-/* -------------------------------------------------------------------------- */
+async function login(payload) {
+  const email = String(payload?.email || "").trim().toLowerCase();
+  const password = String(payload?.password || "");
 
-async function loginUser(email, password, _organizationId, ctx = {}) {
   if (!email || !password) {
-    throw new ValidationError("INVALID_DATA");
+    const err = new Error("INVALID_LOGIN_DATA");
+    err.code = "VALIDATION_ERROR";
+    throw err;
   }
 
-  email = email.toLowerCase().trim();
-
-  if (!process.env.JWT_SECRET) {
-    throw new AuthError("SERVER_MISCONFIGURATION");
+  if (!isValidEmail(email)) {
+    const err = new Error("INVALID_EMAIL");
+    err.code = "VALIDATION_ERROR";
+    throw err;
   }
 
-  const JWT_SECRET = process.env.JWT_SECRET.trim();
+  const row = await authRepository.findUserByEmailForLogin(email);
 
-  const {
-    ipAddress = null,
-    userAgent = null,
-    requestId = null
-  } = ctx;
-
-  const { rows, rowCount } = await pool.query(
-    `SELECT id,email,full_name,password_hash,is_active
-     FROM users
-     WHERE email=$1
-     LIMIT 1`,
-    [email]
-  );
-
-  if (!rowCount) {
-    await recordLoginAudit({
-      organizationId: null,
-      userId: null,
-      email,
-      success: false,
-      failureCode: "INVALID_CREDENTIALS",
-      ipAddress,
-      userAgent,
-      requestId
-    });
-
-    throw new AuthError("INVALID_CREDENTIALS");
+  if (!row) {
+    const err = new Error("USER_NOT_FOUND");
+    err.code = "USER_NOT_FOUND";
+    throw err;
   }
 
-  const user = rows[0];
-
-  if (!user.password_hash) {
-    throw new AuthError("INVALID_CREDENTIALS");
+  if (!row.password) {
+    const err = new Error("INVALID_PASSWORD");
+    err.code = "INVALID_PASSWORD";
+    throw err;
   }
 
-  if (!user.is_active) {
-    throw new AuthError("ACCOUNT_INACTIVE");
-  }
-
-  const match = await bcrypt.compare(password, user.password_hash);
+  const match = await bcrypt.compare(password, row.password);
 
   if (!match) {
-    throw new AuthError("INVALID_CREDENTIALS");
+    const err = new Error("INVALID_PASSWORD");
+    err.code = "INVALID_PASSWORD";
+    throw err;
   }
 
-  const { rows: memberships } = await pool.query(
-    `SELECT m.organization_id, r.key AS role_key
-     FROM memberships m
-     JOIN roles r ON r.id=m.role_id
-     WHERE m.user_id=$1
-     AND m.status='active'`,
-    [user.id]
-  );
-
-  if (!memberships.length) {
-    throw new AuthError("ACCOUNT_NO_ORG_ACCESS");
-  }
-
-  const { organization_id, role_key } = memberships[0];
-
-  const token = signAuthToken(
-    {
-      sub: user.id,
-      organizationId: organization_id,
-      role: role_key
-    },
-    JWT_SECRET
-  );
+  const token = signToken({
+    userId: row.id,
+    organizationId: row.organization_id,
+  });
 
   return {
-    success: true,
     token,
     user: {
-      id: user.id,
-      email: user.email,
-      full_name: user.full_name,
-      organizationId: organization_id,
-      role: role_key
-    }
+      id: row.id,
+      email: row.email,
+      full_name: row.full_name,
+      organization_id: row.organization_id,
+      created_at: row.created_at,
+    },
   };
 }
 
-/* -------------------------------------------------------------------------- */
-
-module.exports = {
-  register,
-  loginUser,
-  AuthError,
-  ValidationError
-};
+module.exports = { register, login };
