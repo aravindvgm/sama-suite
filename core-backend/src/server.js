@@ -1,63 +1,12 @@
-require("dotenv").config(); // MUST FIRST
+"use strict";
 
+/**
+ * Backwards-compatible entry: some tooling reads package.json "main".
+ * Canonical production bootstrap is `node index.js` from core-backend root.
+ *
+ * This file only exports the same Express `app` as ../server.js — it does
+ * not call listen(), so `node src/server.js` alone will not bind a port.
+ * Use `npm start` / `node index.js` for the full server + migrations.
+ */
 
-// ================= ENV VALIDATION =================
-
-if(!process.env.JWT_SECRET){
-
-console.error("❌ JWT_SECRET missing");
-
-process.exit(1);
-
-}
-
-
-// ================= LOAD SERVICES FIRST =================
-
-require("./config/db");
-
-require("./config/redis");
-
-
-// ================= LOAD EXPRESS =================
-
-const app = require("./app");
-
-
-const PORT =
-process.env.PORT || 5000;
-
-
-// ================= START SERVER =================
-
-const server =
-app.listen(PORT,()=>{
-
-console.log(
-
-`🚀 Sama Technologies Core Backend running on port ${PORT}`
-
-);
-
-});
-
-
-// ================= SHUTDOWN =================
-
-function shutdown(signal){
-
-console.log(`${signal} received`);
-
-server.close(()=>{
-
-console.log("Server closed");
-
-process.exit(0);
-
-});
-
-}
-
-process.on("SIGTERM",shutdown);
-
-process.on("SIGINT",shutdown);
+module.exports = require("../server");

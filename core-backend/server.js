@@ -1,116 +1,117 @@
+"use strict";
+
+/**
+ * Canonical Express application for SAMA-SUITE core-backend.
+ *
+ * Mounted by index.js (production / Render) and re-exported by src/server.js
+ * for backwards compatibility.
+ *
+ * Route order matters: register literal paths (health, root) before any
+ * routers that use dynamic segments under /api.
+ */
+
+// Ensure DB pool is initialised before route modules that depend on it
+require("./src/config/db");
+
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 
+const { authLimiter } = require("./src/middleware/rateLimiter");
+const authRoutes = require("./src/modules/auth/auth.routes");
+const apiRouter = require("./routes/index");
+
 const app = express();
-
-
-// ======================================================
-// TRUST PROXY
-// ======================================================
 
 app.set("trust proxy", 1);
 
-
-// ======================================================
-// CORS CONFIGURATION (before helmet and routes)
-// ======================================================
-
-const allowedOrigins = [
+// ---------------------------------------------------------------------------
+// CORS — allow server-to-server / curl (no Origin) + known frontends + Render
+// ---------------------------------------------------------------------------
+const allowedOrigins = new Set([
+  "http://localhost:3000",
   "http://localhost:4200",
-  "https://sama-suite-dev.netlify.app"
-];
+  "http://127.0.0.1:4200",
+  "https://sama-suite-dev.netlify.app",
+]);
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.has(origin)) return true;
+  try {
+    const host = new URL(origin).hostname;
+    if (host.endsWith(".onrender.com")) return true;
+  } catch {
+    return false;
+  }
+  return false;
+}
 
 const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) return callback(null, true);
     return callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
-  methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
-  allowedHeaders: ["Content-Type","Authorization"]
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 };
 
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 
-
-// ======================================================
-// SECURITY
-// ======================================================
-
 app.use(helmet());
-
-
-// ======================================================
-// BODY PARSERS
-// ======================================================
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-app.get("/test", (_req, res) => {
-  res.send("Server working");
+// ---------------------------------------------------------------------------
+// Health & root (before /api catch-all style routers)
+// ---------------------------------------------------------------------------
+app.get("/health", (_req, res) => {
+  res.json({
+    success: true,
+    message: "Server is running",
+    timestamp: new Date().toISOString(),
+  });
 });
 
+app.get("/api/health", (_req, res) => {
+  res.json({
+    success: true,
+    status: "ok",
+    service: "SAMA-SUITE API",
+    environment: process.env.NODE_ENV || "development",
+    databaseUrlConfigured: !!process.env.DATABASE_URL,
+    jwtConfigured: !!process.env.JWT_SECRET,
+    timestamp: new Date().toISOString(),
+  });
+});
 
-// ======================================================
-// ROUTES
-// ======================================================
-
-const authRoutes = require("./src/modules/auth/auth.routes");
-const routes = require("./routes/index");
-
-app.use("/api/auth", authRoutes);
-app.use("/api", routes);
-
-
-// ======================================================
-// HEALTH ROUTES
-// ======================================================
-
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   res.json({
     success: true,
     service: "SAMA-SUITE Backend",
     company: "Sama Technologies",
-    status: "running"
+    status: "running",
   });
 });
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    success: true,
-    status: "ok",
-    timestamp: new Date().toISOString()
-  });
-});
+// ---------------------------------------------------------------------------
+// API — auth first (explicit mount + rate limit), then aggregated /api router
+// ---------------------------------------------------------------------------
+app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api", apiRouter);
 
-app.get("/health", (_req, res) => {
-  return res.json({
-    success: true,
-    message: "Server is running"
-  });
-});
-
-
-// ======================================================
-// FALLBACK ROUTE
-// ======================================================
-
+// ---------------------------------------------------------------------------
+// 404
+// ---------------------------------------------------------------------------
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    message: "API route not found"
+    message: "API route not found",
+    path: req.originalUrl,
   });
 });
-
-
-// ======================================================
-// EXPORT APP
-// ======================================================
 
 module.exports = app;
